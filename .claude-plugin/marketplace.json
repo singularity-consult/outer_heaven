@@ -1,0 +1,17 @@
+{
+  "name": "singularity-consult",
+  "owner": {
+    "name": "Benny Christiansen",
+    "email": "benny@singularityconsult.dk"
+  },
+  "metadata": {
+    "description": "How Benny and singularity-drone build."
+  },
+  "plugins": [
+    {
+      "name": "outer_heaven",
+      "source": "./",
+      "description": "Workflow plugin: skills, hooks, and agents for how Benny and singularity-drone build."
+    }
+  ]
+}
