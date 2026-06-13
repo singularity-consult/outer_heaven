@@ -21,7 +21,7 @@ A Claude Code plugin that bundles the skills, hooks, and agents for a consistent
 
 ## Available skills
 
-None yet. Build in progress.
+- **diary**: Implementation diary in the outer_heaven repo, capturing what changed, why, what worked, what failed, and what was tricky. Activates during non-trivial work and at session-end moments.
 
 ## Available sub-agents
 
