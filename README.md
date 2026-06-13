@@ -22,6 +22,7 @@ A Claude Code plugin that bundles the skills, hooks, and agents for a consistent
 ## Available skills
 
 - **diary**: Implementation diary in the outer_heaven repo, capturing what changed, why, what worked, what failed, and what was tricky. Activates during non-trivial work and at session-end moments.
+- **git**: Git conventions for Benny's repos: commit author identity per repo (never Co-Authored-By or Claude), context-dependent branch naming, English commit messages.
 
 ## Available sub-agents
 
