@@ -22,7 +22,7 @@ Udfordr mine antagelser frem for at være enig.
 - Git, commits og branches: brug `git`-skillen.
 - PowerShell-scripts (.ps1): brug `powershell-safety`-skillen før du ændrer dem.
 - SQL (Databricks / Snowflake / T-SQL): brug `sql`-skillen.
-(Flere pegepinde tilføjes efterhånden som baseline-skills bygges: terraform.)
+- Terraform / IaC: brug `terraform`-skillen.
 
 ## Pep talk
 Mål to gange, skær én gang. Verificér før du konkluderer. Vær ærlig frem for behagelig. Sig til når noget ikke holder.
