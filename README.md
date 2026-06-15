@@ -23,6 +23,7 @@ A Claude Code plugin that bundles the skills, hooks, and agents for a consistent
 
 - **diary**: Implementation diary in the outer_heaven repo, capturing what changed, why, what worked, what failed, and what was tricky. Activates during non-trivial work and at session-end moments.
 - **git**: Git conventions for Benny's repos: commit author identity per repo (never Co-Authored-By or Claude), context-dependent branch naming, English commit messages.
+- **improve-skill**: Review the current conversation for outer_heaven skills that underperformed (corrections, missed triggers, friction) and ship fixes back via a lightweight branch-and-push flow. User-invoked, or suggested at session end only when there is concrete signal.
 - **merge-conflict-safety**: Resolve merge conflicts safely: `git log main..branch --stat` first, keep only the branch's real changes, take `main` for everything else.
 - **powershell-safety**: Hard rule: never modify an existing `.ps1` file without Benny's explicit approval first. Reading and running PowerShell is fine.
 - **python**: Python conventions for Benny's work (Databricks/PySpark, pandas, pipeline libraries, FastAPI): PEP 8 style and idiom, type hints, structure, and the traps that bite most (mutable defaults, chained assignment, Spark laziness).
