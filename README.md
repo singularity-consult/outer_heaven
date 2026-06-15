@@ -23,6 +23,7 @@ A Claude Code plugin that bundles the skills, hooks, and agents for a consistent
 
 - **diary**: Implementation diary in the outer_heaven repo, capturing what changed, why, what worked, what failed, and what was tricky. Activates during non-trivial work and at session-end moments.
 - **git**: Git conventions for Benny's repos: commit author identity per repo (never Co-Authored-By or Claude), context-dependent branch naming, English commit messages.
+- **powershell-safety**: Hard rule: never modify an existing `.ps1` file without Benny's explicit approval first. Reading and running PowerShell is fine.
 
 ## Available sub-agents
 
