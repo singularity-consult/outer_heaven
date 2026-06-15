@@ -29,6 +29,7 @@ A Claude Code plugin that bundles the skills, hooks, and agents for a consistent
 - **python**: Python conventions for Benny's work (Databricks/PySpark, pandas, pipeline libraries, FastAPI): PEP 8 style and idiom, type hints, structure, and the traps that bite most (mutable defaults, chained assignment, Spark laziness).
 - **sql**: SQL conventions and dialect guidance for Databricks SQL, Snowflake SQL, and T-SQL (UPPERCASE keywords, CTEs, explicit columns). Dialect-specific syntax and gotchas in `references/`.
 - **terraform**: Terraform/IaC conventions and safety for Benny's Azure repos: plan before apply, prod needs approval, never commit secrets or state, pin versions, `fmt`/`validate`.
+- **work-style-insight**: Read the diary corpus in `docs/diary/` and distil patterns in how Benny works and decides, plus derived suggestions, into a dated file in `docs/insights/`. User-invoked; never edits skills itself.
 - **writing-clearly-and-concisely**: Apply Strunk's *Elements of Style* to prose a human reads (docs, commit messages, errors, UI copy): omit needless words, active voice, concrete language.
 
 ## Available sub-agents
