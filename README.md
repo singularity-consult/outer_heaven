@@ -25,6 +25,7 @@ A Claude Code plugin that bundles the skills, hooks, and agents for a consistent
 - **git**: Git conventions for Benny's repos: commit author identity per repo (never Co-Authored-By or Claude), context-dependent branch naming, English commit messages.
 - **merge-conflict-safety**: Resolve merge conflicts safely: `git log main..branch --stat` first, keep only the branch's real changes, take `main` for everything else.
 - **powershell-safety**: Hard rule: never modify an existing `.ps1` file without Benny's explicit approval first. Reading and running PowerShell is fine.
+- **python**: Python conventions for Benny's work (Databricks/PySpark, pandas, pipeline libraries, FastAPI): PEP 8 style and idiom, type hints, structure, and the traps that bite most (mutable defaults, chained assignment, Spark laziness).
 - **sql**: SQL conventions and dialect guidance for Databricks SQL, Snowflake SQL, and T-SQL (UPPERCASE keywords, CTEs, explicit columns). Dialect-specific syntax and gotchas in `references/`.
 - **terraform**: Terraform/IaC conventions and safety for Benny's Azure repos: plan before apply, prod needs approval, never commit secrets or state, pin versions, `fmt`/`validate`.
 - **writing-clearly-and-concisely**: Apply Strunk's *Elements of Style* to prose a human reads (docs, commit messages, errors, UI copy): omit needless words, active voice, concrete language.
