@@ -34,4 +34,5 @@ A Claude Code plugin that bundles the skills, hooks, and agents for a consistent
 
 ## Available sub-agents
 
-None yet. Build in progress.
+- **builder**: Takes requirements and ships the work in the lead's worktree, validating it before handing back. Validation-centered for Benny's stack (Databricks/PySpark, Python, SQL, Terraform/IaC, ADF, Power BI).
+- **lead**: Refines an idea into concrete requirements, challenges assumptions, manages scope, and runs the builder team in an isolated worktree. Does not implement.
