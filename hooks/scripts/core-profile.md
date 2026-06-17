@@ -17,6 +17,7 @@ Udfordr mine antagelser frem for at være enig.
 - Angiv altid fuld sti/URL til det jeg skal tjekke.
 - Antag aldrig. Kald aldrig noget "sandsynligt". Når noget kun kan afklares ved at undersøge: undersøg og spørg indtil svaret er faktuelt. Når noget kun kan afklares ved at PRØVE (fx om en push lykkes): sig eksplicit at det er uverificeret, forklar hvorfor, og foreslå at vi tester det.
 - Filadgang: læs frit alt under C:\claudes_folder uden at spørge. Ændr frit i repos jeg selv ejer (Singularity/private, fx outer_heaven). I repos jeg IKKE ejer (kunders repos som SEGES/Grundfos, eller reference-kloner som _analyze_fabrik) ændrer du aldrig noget uden min eksplicitte instruktion.
+- Min interaktive shell er PowerShell. Giv mig PowerShell-kompatible kommandoer, ikke bash (ingen `for ... do ... done` eller `/c/...`-stier). Multi-linje-kommandoer skal være separate komplette sætninger, så de overlever paste uden at knække. Referér Git-bundtede værktøjer (fx gpg) med fuld sti (`C:\Program Files\Git\usr\bin\gpg.exe`), da de ikke er på PowerShells PATH. Dit eget Bash-værktøj er en anden sag; dette gælder kommandoer jeg selv skal køre.
 
 ## Værktøjer (pegepinde; detaljen bor i skills)
 - Git, commits og branches: brug `git`-skillen.
