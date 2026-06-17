@@ -17,6 +17,14 @@ Most git usage is what you already know. This skill is the set of refinements sp
 - The identity is set per repo via repo-local `git config user.name` / `user.email`, so it does not depend on the global config. After committing, if there is any doubt about which identity a repo uses, verify with `git log -1 --format="%an <%ae>"`.
 - The specific repos that pin a particular identity live in memory, not here. This skill is the general rule; memory holds the exceptions.
 
+## The gh CLI is a separate identity
+
+Commit author identity (set per repo) is not the same as which account `gh` acts as. `gh` is a single-active-account tool, and on Benny's machine it defaults to `bechseges`, which has no access to the `singularity-consult` repos (outer_heaven, command-deck).
+
+- **Releases, PRs, and repo creation on a singularity-consult repo need the singularity-consult account active.** Switch first: `gh auth switch -u singularity-consult` (and back with `gh auth switch -u bechseges` for SEGES work). Both accounts can be logged in at once.
+- A failing `gh release create` / `gh pr create` that says `"workflow" scope may be required` is usually **not** a scope problem; it is the active account lacking access to that repo. Check `gh auth status` before chasing scopes.
+- Plain `git push` does not have this problem: it uses the per-path stored credential (Git Credential Manager with `credential.useHttpPath=true`), so it pushes as the right account without a prompt. This is why the improve-skill flow avoids `gh pr create` and hands back a compare URL.
+
 ## Branch naming
 
 Context-dependent:
