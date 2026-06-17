@@ -94,3 +94,34 @@ The installed plugin on this machine is still v0.10.0 (the diary skill loaded fr
 
 ### Future work
 Trin 6: install outer_heaven + clone command-deck on Mac Mini and desktop, git-sync, optional Stop/PreToolUse hooks. Build the planned `adf`, `databricks`, `power-bi` skills when the work calls for them.
+
+## Step 4: Encrypted sensitive layer in command-deck
+
+**Author:** main
+
+### Prompt Context
+
+**Verbatim prompt:** "en ting - de her følsomme memory - placer dem også i command-deck, da det jo er et privat repo"
+**Interpretation:** Put the sensitive memory files into command-deck too, on the reasoning that a private repo is safe enough.
+**Inferred intent:** Make the sensitive files portable across machines like the rest.
+
+### What I did
+Pushed back first: "private" is not the same as "safe" for this content. Laid out the trade-offs (git history is permanent, cloud custody, one account compromise leaks everything, special-category health data, live credentials) and offered three paths. Benny chose an encrypted layer. git-crypt and age are not installed and choco needs elevation I cannot drive, but gpg 2.4.8 is present, so used gpg symmetric AES256: ciphertext-only blobs in `command-deck/sensitive/`, plaintext never entering the repo. Built `sensitive/.gitignore` (ignore everything except `*.gpg`, README, .gitignore) and a README documenting open/seal. Benny ran the encryption himself so the passphrase never touched the transcript. Verified all 7 blobs are AES256 (`gpg --list-packets` shows `symkey enc packet ... cipher 9`), confirmed no plaintext in the blobs or anywhere in git history, committed and pushed only the blobs.
+
+### Why
+Portability of sensitive data via git is only acceptable if the plaintext never reaches git. Encryption at rest gives the portability without the exposure. gpg was the only zero-install option and is cross-platform (also on the Mac), so it fits Trin 6.
+
+### What didn't work
+Two real frictions, both worth keeping. First, I handed Benny bash syntax but he was in PowerShell: `cd /c/claudes_folder/...` failed with `Cannot find path 'C:\c\claudes_folder\...'` and the `for ... do ... done` loop threw `Missing opening '(' after keyword 'for'`. Rewrote it as PowerShell using the full gpg path `C:\Program Files\Git\usr\bin\gpg.exe` (gpg is not on the PowerShell PATH). Second, a multi-line paste of the single-file command split after `-o`, so gpg got `gpg: missing argument for option "-o"`. Fixed by giving three separate complete statements (assign `$gpg`, assign `$src`, then call) so paste-splitting cannot break it. Also: the first batch encrypted only 6 of 7 files; the gpg-agent passphrase cache dropped before the last file (`health_std_risk_assessment`), so it had to be re-run on its own.
+
+### What I learned
+Benny's shell is PowerShell, not Git Bash. Hand him PowerShell, or multi-line commands as separate complete statements that survive paste-splitting, and reference Windows tools by full path when they are not on the PowerShell PATH. The gpg-agent cache can lapse mid-loop, so a multi-file encrypt should be verified by count, not assumed complete.
+
+### What was tricky
+Keeping the passphrase out of the transcript while still driving the work: the answer was to prepare all the non-secret scaffolding myself and have Benny run only the encrypt step. And the judgement call to push back on "private repo = safe" rather than just comply; the distinction between low-harm private (interview notes) and genuinely dangerous (health, credentials, finances) drove the design.
+
+### What warrants review
+Decrypt is verified only on this machine. The local memory originals are deliberately kept until unlock is confirmed on another machine (Trin 6); only then delete them. The passphrase exists only in Benny's password manager, nowhere else.
+
+### Future work
+Trin 6 cross-machine: clone command-deck on Mac Mini/desktop, `gpg --decrypt` a blob with the same passphrase, then delete the local memory originals. Consider whether git-crypt (transparent UX) is worth installing later versus keeping gpg's decrypt-on-demand.
