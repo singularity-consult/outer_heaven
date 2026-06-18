@@ -638,3 +638,89 @@ delete a whole table's worth of rows" - exactly the event that should be logged 
 ERROR level to a central sink (e.g. a run-log table, Databricks job alerting, or
 the framework's own logging once it exists), not just printed. When that mechanism
 lands, route both guards (and the existing tableExists/no-PK skips) through it.
+
+## Step 6: Skip empty landing folders in the shared raw loader
+
+**Author:** main (builder designed + validated it, but was sandbox-blocked from writing to disk; main applied the change as commit mechanism)
+
+### Prompt Context
+
+**Verbatim prompt:** de listede tabeller, der har filer skal loades og så skal de tabeller, der ikke har filer springes over - men det skal på sigt kunne logges at de ikke har data men findes i meta data
+
+**Interpretation:** The shared raw loader must skip tables whose landing folder is empty (load the rest), and the "exists in metadata but no landed files" condition should eventually be logged centrally.
+
+**Inferred intent:** Make a full o90 raw run robust to partially-landed data, so one empty folder cannot abort the whole batch, without disturbing other sources that share the loader.
+
+### What I did
+
+First test run of the raw load (notebook 1, `load_to_raw_general.py`, scoped to
+`connection_name = 'o90' AND IncrementalFlag = 0`) failed with
+`CloudFilesException: [CF_EMPTY_DIR_FOR_SCHEMA_INFERENCE] Cannot infer schema when
+the input path abfss://landing@.../o90/BC_AFTALE_CERTIFIKAT is empty`. Root cause
+confirmed by reading the code: `ingest()`'s `except Exception as e: print(...);
+raise e` re-raises, the exception propagates out of `executor.map`, and the whole
+batch dies - so only the tables processed before the first empty folder reached raw
+(Benny saw ~7 of many).
+
+Added a recursive `landing_has_files(landing_path)` helper in its own cell before
+`ingest()`, and a skip-check inside `ingest()` right after the "Ingesting..." print
+and before the `overwrite` checkpoint cleanup: if the landing path is missing or
+empty, print a "Skipping..." line and `return`, so the other source objects keep
+loading. Recursion is needed because o90 landing uses dated subfolders and
+`dbutils.fs.ls` reports subfolders with `size == 0`; a flat empty-listing check
+would mis-classify a folder whose subfolders are all empty. The existing
+`except/raise` for genuine errors is untouched. Committed on
+`feature/o90-raw-delete-detection` as `796a409`, pushed for Benny to pull and test.
+
+### Why
+
+A full o90 run will routinely meet not-yet-landed tables while the DB2/ADF
+migration is in progress (only some full tables have landed). Aborting the whole
+batch on the first empty folder makes the loader unusable until every table is
+landed; skipping empty folders lets the run process everything that is ready.
+
+### What worked
+
+Small, additive change (one helper + one guard clause). Re-validated the builder's
+6 traversal cases with a pure-Python stub (missing path, empty folder,
+only-empty-subfolders, file in top, file in dated subfolder, only zero-byte marker)
+- all 6 passed. AST parse OK. Skip is a `return`; genuine errors still raise.
+
+### What didn't work
+
+The builder sub-agent could not write to disk this run: Edit/Write/PowerShell and
+non-trivial Bash were all denied in its sandbox the entire session. It produced the
+design and validation but its exact diffs lived in an intermediate message the
+parent cannot read, and `SendMessage` to resume it is not available in this session.
+So main applied the change directly - a deviation from "implementation goes through
+builder", but the builder was mechanically blocked, not bypassed by choice, and main
+re-verified the design before committing.
+
+### What I learned
+
+When a builder is sandbox-blocked from writing, the loop degrades to "builder
+designs, main applies" - which only works if the builder surfaces the *exact* diff
+in its final result message. This builder's final message referenced "diffs shown
+above" the parent could not read. Future builder prompts should require the full
+diff in the final deliverable when a commit may be blocked.
+
+### What was tricky
+
+Directory detection in `dbutils.fs.ls` rests on subfolder paths ending in `/` with
+`size == 0`. The helper recurses on `path.endswith("/")` and treats `size > 0` as a
+real file. If Databricks ever lists directories without a trailing slash, recursion
+would not descend - flagged as a live-verification point.
+
+### What warrants review
+
+On a real dev run: confirm skipped tables print "Skipping..." and non-empty ones
+still load (batch no longer dies on the first empty folder), and that a genuinely
+non-empty folder is never skipped. The directory-trailing-slash assumption is the
+thing most worth eyeballing against one real `dbutils.fs.ls` result.
+
+### Future work
+
+Same central-logging gap as Step 5: "exists in metadata, no files in landing"
+should be logged (INFO level) to a central run-log sink, not just printed. Both the
+empty-folder skip and the delete-detection guards want the same structured logging
+mechanism when it lands.
