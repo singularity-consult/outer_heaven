@@ -495,3 +495,146 @@ Worth re-reading the file rather than trusting the diff's block boundaries.
 A dev run of the two-task job to confirm the 19 full tables now take the
 full-snapshot branch (not `/Keys/`) and that delete detection closes only
 truly-absent keys. No further code change is anticipated for this fix.
+
+## Step 5: Two safety guards before soft_delete (empty key set + PK alignment)
+
+**Author:** builder (outer_heaven:builder sub-agent)
+
+### Prompt Context
+
+**Verbatim prompt:** (Danish, abridged) Fortsæt på branch
+`feature/o90-raw-delete-detection` (byg ovenpå). Baggrund:
+`load_to_raw_update_deleted_flags.py` kalder `write.soft_delete(source_keys_df,
+destination_table, primary_key_columns)`. Internt anti-joiner write.py raw-target
+mod `source_keys_df` på PK. To TAVSE katastrofe-fejlmodes: (1) tom `source_keys_df`
+-> alt flagges slettet (frameworket checker kun `is None`, ikke tom); (2)
+PK-navne-mismatch mellem source_keys_df og raw-target -> join matcher intet -> alt
+flagges slettet. Frameworket sanitiserer PK med `sanitize_string` (lowercase),
+mens source_keys_df blev sanitiseret med `sanitizer_unit_labeled_columns` (ø->oe)
+- to forskellige funktioner der kun flugter ved tilfælde. OPGAVE: tilføj to guards
+i notebooket (KUN notebook - rør IKKE framework/write.py), pr. source-object EFTER
+`source_keys_df` er bygget og FØR `write.soft_delete(...)`. Guard A - tomt
+nøglesæt: hvis tom (fx `limit(1).count() == 0`) -> log tydelig ERROR (tabelnavn +
+snapshot-sti) og skip (return). Guard B - PK-alignment: hent
+`spark.table(raw_table).columns`, verificér at HVER PK findes case-insensitivt i
+BÅDE source_keys_df.columns OG raw-targetets kolonner; ellers log ERROR (forventede
+PK vs faktiske kolonner på begge sider) og skip (return). Guard-trip = skip + log
+(error), IKKE raise/crash - fan-out skal fortsætte. Behold tableExists-guarden,
+IncrementalFlag-branchen og alt andet uændret. Author Benny Christiansen. Ingen
+push.
+
+**Interpretation:** Add two pre-flight guards inside `update_deleted_flags`,
+between building `source_keys_df` and calling `write.soft_delete`, that each detect
+a silent "delete-everything" failure mode and skip the single table (soft return,
+ERROR print) without aborting the ThreadPoolExecutor fan-out over the other source
+objects. Notebook-only; framework untouched.
+
+**Inferred intent:** `soft_delete` -> `upsert_type_2(detect_deletes=True)` does a
+`left_anti` join of the current raw rows against `source_keys_df` on the PK. Both
+an empty key set and a PK name mismatch make that anti-join keep every current row,
+so the entire table gets a `dw_is_deleted=true` close+reopen - silently, with no
+error. The framework only guards `source_keys_df is None`. These two guards close
+the gap at the only place that has both the key set and the target table in hand.
+
+### What I did
+
+Verified the build context first: `git rev-parse --abbrev-ref HEAD` ->
+`feature/o90-raw-delete-detection`; the target file sits at the repo root
+(`C:\claudes_folder\repos\DLBR-DataEstate2026\solutions\databricks\01_raw\load_to_raw_update_deleted_flags.py`),
+not under `.claude/worktrees/`. Re-read `write.py`: confirmed `soft_delete` (line
+618) delegates to `upsert_type_2(..., detect_deletes=True, source_keys_df=...)`,
+and the anti-join that does the damage is lines 831-833
+(`target_df.filter(is_current=true AND is_deleted=false).join(source_keys_df,
+primary_key_columns, "left_anti")`). Confirmed the framework's only emptiness-style
+guard is `if source_keys_df is None: raise ValueError` (lines 822-825) - emptiness
+is genuinely unguarded.
+
+Edited only the notebook. Between `source_keys_df = snapshot_df.select(...).distinct()`
+(line 147) and `write.soft_delete(...)` (now line 193) I inserted:
+
+- **Guard A** - `if source_keys_df.limit(1).count() == 0:` -> ERROR print
+  including `raw_table` and `latest_snapshot`, then `return`. `limit(1).count()`
+  short-circuits after one row so it never scans the full key set.
+- **Guard B** - lowercases both `source_keys_df.columns` and
+  `spark.table(raw_table).columns` into sets, then computes
+  `missing_in_source_keys` / `missing_in_raw_target` as the PKs absent from either
+  side (`pk.lower() not in <set>`). If either list is non-empty -> ERROR print
+  showing expected `primary_key_columns`, both actual column lists, and exactly
+  which PK is missing on which side, then `return`.
+
+Left the existing `spark.catalog.tableExists` guard, the no-PK skip, the
+`IncrementalFlag` branch, the fan-out, and everything else untouched.
+
+### Why
+
+`return` (not `raise`) is the load-bearing choice. The fan-out is
+`executor.map(lambda obj: update_deleted_flags(obj), source_objects)` inside a
+`ThreadPoolExecutor`; a `return` ends only that one table's call, so the executor
+keeps processing the other source objects. A `raise` would have surfaced through
+the existing `except ...: raise e` and could take down the run - which the prompt
+explicitly forbids. Case-insensitive comparison is required because the two
+sanitizers genuinely differ (`sanitize_string` lowercase-only vs
+`sanitizer_unit_labeled_columns` ø->oe); Spark resolves names case-insensitively at
+join time, so lowercasing both sides mirrors what the anti-join will actually do
+and catches the alignment problem before it can delete everything.
+
+### What worked
+
+AST parse passed first try
+(`python -c "import ast; ast.parse(open(...).read())"` -> "AST parse OK"). I also
+ran an isolated pure-Python logic test of both guard predicates (no Spark): empty
+list trips A, one row does not; a case-only PK difference (`BedriftNr` vs
+`bedriftnr` vs `BEDRIFTNR`) does NOT trip B; a real miss on either the source side
+(`lobenr` vs `loebenr`) or the target side trips B with the correct
+missing-on-which-side list; a composite PK aligned case-insensitively passes. All
+assertions passed ("All guard-logic assertions passed").
+
+### What didn't work
+
+No failures in what I could run. The real proof - that the anti-join, the empty
+snapshot, and the actual PK casing off the deployed raw tables behave as reasoned -
+needs a live Databricks dev run, which is not available here. Stated limitation,
+not a smoothed-over claim. Git was not attempted for commit (sandbox pattern from
+prior steps); diffs handed back for Benny to commit.
+
+### What I learned
+
+The two failure modes collapse to the same anti-join: `left_anti` keeps every left
+row whose join key finds no match on the right, so "no keys" and "keys that cannot
+match by name" are indistinguishable to it - both yield "close+reopen everything as
+deleted". That is why a single placement (after the key set is built, before
+soft_delete) with two cheap checks covers both. Also reconfirmed: `limit(1).count()`
+is the right emptiness probe for a lazy frame - it forces an action but short-
+circuits, unlike `count()` on the full distinct set or `collect()`.
+
+### What was tricky
+
+Guard B re-calls `spark.table(raw_table)` inside the error f-string (to print the
+actual target columns). That is a deliberate trade: the extra catalog read only
+happens on the rare guard-trip path, and `.columns` hits metadata, not data, so it
+is cheap. The alternative (hoisting the column list into a local just for the error
+message) added a line for no runtime benefit on the happy path. Kept it inline.
+
+### What warrants review
+
+1. **Guard B is the actual safety net for the PK-alignment risk** flagged in every
+   prior step. On the first live dev run, confirm it does NOT false-trip on the 19
+   full tables - i.e. the sanitised snapshot PKs really do align case-insensitively
+   with the deployed raw columns. If it trips, that is the guard correctly catching
+   the exact bug, not a guard bug; inspect the printed expected-vs-actual lists.
+2. **Guard A threshold:** confirm `limit(1).count() == 0` behaves as expected on an
+   empty snapshot read (it should yield 0). Only confirmable live.
+3. Confirm on a real run that a guard-trip on one table leaves the other source
+   objects processing normally (fan-out continuity) - reasoned from the executor
+   semantics but not observed live.
+
+### Future work
+
+Replace the `print`-based logging with a proper structured/centralised logging
+mechanism (Benny's stated intent). Today every guard-trip and skip is a bare
+`print` to the notebook/driver stdout, which is fine for a manual dev run but does
+not surface to any alerting or run-history store. A guard-trip means "I refused to
+delete a whole table's worth of rows" - exactly the event that should be logged at
+ERROR level to a central sink (e.g. a run-log table, Databricks job alerting, or
+the framework's own logging once it exists), not just printed. When that mechanism
+lands, route both guards (and the existing tableExists/no-PK skips) through it.
