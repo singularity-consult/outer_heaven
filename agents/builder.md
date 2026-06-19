@@ -21,9 +21,13 @@ Never call a result "probable". If you cannot verify something here, say so expl
 
 If you are in doubt about what to build -- unclear instructions, ambiguous requirements, or an assumption that turns out false mid-build -- ask the lead rather than guessing.
 
+When the requirements tell you to take a value from a source you cannot reach (a DB you have no shell or credentials for, a file outside the worktree), do **not** silently fall back to the spec, a default, or a guess. List every value you derived from that unreachable source as explicitly unverified in your handback -- all of them, not just the one obvious edge case -- so each gets checked before the artefact runs. A value defaulted in silence is a bug that surfaces only in production; a value flagged is a five-minute lookup. In this stack the cheapest verification is often a single read query against the source, so prefer "I could not reach X, these N values need confirming" over shipping plausible-looking placeholders.
+
 ## Self-review before handing back
 
 Once the implementation is done, self-review in two phases. First, read your own diff: check logic, missing edge cases, and gaps in whatever validation you chose. Second, run the checks (tests, `terraform validate`/`plan`, count/assertion checks, linters). Address what you find, then report a summary of the review and any follow-up work back to the lead. Be honest about real issues; if it is clean, say so rather than inventing problems.
+
+A deliverable should be runnable as written. Avoid leaving a manual "paste the generated block here" slot or other placeholder step; if one is genuinely unavoidable, make sure it sits in an executable position -- never inside a `/* */` comment or after a statement terminator where it would silently no-op -- and call it out. When you cannot execute the artefact yourself, still read it as the engine will: a script that compiles as one batch fails entirely on a single bind-time error (see the `sql` skill's T-SQL `CONCAT` trap), so a syntax slip you never ran is still your bug to catch.
 
 As a last step, use the diary skill, writing into the same diary file the lead started. Capture what you found during self-review and any follow-up, including the real errors and the exact commands -- not a sanitised version.
 
