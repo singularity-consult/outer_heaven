@@ -21,6 +21,7 @@ A Claude Code plugin that bundles the skills, hooks, and agents for a consistent
 
 ## Available skills
 
+- **caf-analytics**: A design-and-review lens for Azure analytics/data solutions, anchored in the Cloud Adoption Framework and Azure landing zones. Covers the Databricks + ADLS + Unity Catalog track and the Fabric / OneLake track.
 - **diary**: Implementation diary in the outer_heaven repo, capturing what changed, why, what worked, what failed, and what was tricky. Activates during non-trivial work and at session-end moments.
 - **git**: Git conventions for Benny's repos: commit author identity per repo (never Co-Authored-By or Claude), context-dependent branch naming, English commit messages.
 - **improve-skill**: Review the current conversation for outer_heaven skills that underperformed (corrections, missed triggers, friction) and ship fixes back via a lightweight branch-and-push flow. User-invoked, or suggested at session end only when there is concrete signal.
