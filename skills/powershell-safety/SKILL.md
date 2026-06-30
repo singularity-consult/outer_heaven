@@ -1,6 +1,6 @@
 ---
 name: powershell-safety
-description: Hard rule for PowerShell script files (.ps1) in Benny's repos: never modify, overwrite, or refactor an existing .ps1 without Benny's explicit approval first. Use this whenever you are about to Edit, Write, or otherwise change a .ps1 file (deployment scripts like Deploy.ps1 especially). This is about editing .ps1 FILES, not about running normal PowerShell commands, which is fine.
+description: Hard rule for PowerShell script files (.ps1) in Benny's repos: never modify, overwrite, or refactor an existing .ps1 without Benny's explicit approval first. Use this whenever you are about to Edit, Write, or otherwise change a .ps1 file (deployment scripts like Deploy.ps1 especially). This is about editing .ps1 FILES, not about running normal PowerShell commands, which is fine. Also covers authoring PowerShell snippets you hand Benny to paste and run interactively, so terminal line-wrapping does not corrupt them.
 ---
 
 # powershell-safety
@@ -31,3 +31,13 @@ When a `.ps1` change looks necessary:
 4. Only then edit.
 
 A hard `PreToolUse` hook that blocks `.ps1` edits outright is a planned reinforcement of this rule, so the guardrail does not rest on memory alone.
+
+## Authoring PowerShell you hand Benny to paste
+
+Separate from editing `.ps1` files: when you give Benny PowerShell to paste and run interactively, write it so terminal line-wrapping at the `>>` continuation prompt cannot silently corrupt it. A wrapped line injects a newline plus indentation into whatever it lands in.
+
+- **Pull any token with internal spaces into its own short variable**, then reference the variable. A long literal that wraps mid-token breaks silently. Real case: a wrapped `Driver={IBM DB2 ODBC DRIVER - C_DB2CLI}` connection string produced `ERROR [IM002] Data source name not found` until the driver name was pulled into `$drv` first.
+- **Build long strings in short pieces with `+=`**, one keyword per physical line, instead of one long line that wraps unpredictably. A connection string split as `$cs = "Driver={$drv};Hostname=...;Port=...;"` then `$cs += "Database=...;..."` survives the paste; a single 200-char line does not.
+- **Keep each physical line short** enough not to wrap, and never split a single quoted literal across the visual wrap.
+- These are paste-robustness habits, not a license to touch `.ps1` files; the hard rule above still applies to anything saved as a script.
+
