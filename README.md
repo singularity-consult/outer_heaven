@@ -23,9 +23,11 @@ A Claude Code plugin that bundles the skills, hooks, and agents for a consistent
 
 - **caf-analytics**: A design-and-review lens for Azure analytics/data solutions, anchored in the Cloud Adoption Framework and Azure landing zones. Covers the Databricks + ADLS + Unity Catalog track and the Fabric / OneLake track.
 - **diary**: Implementation diary in the outer_heaven repo, capturing what changed, why, what worked, what failed, and what was tricky. Activates during non-trivial work and at session-end moments.
+- **distill-book**: Distill a long book into a concise, structured set of learnings by fanning it out chapter by chapter to parallel subagents, then synthesizing the short overviews. Format-agnostic (PDF, EPUB, Markdown, HTML, plain text).
 - **git**: Git conventions for Benny's repos: commit author identity per repo (never Co-Authored-By or Claude), context-dependent branch naming, English commit messages.
 - **improve-skill**: Review the current conversation for outer_heaven skills that underperformed (corrections, missed triggers, friction) and ship fixes back via a lightweight branch-and-push flow. User-invoked, or suggested at session end only when there is concrete signal.
 - **merge-conflict-safety**: Resolve merge conflicts safely: `git log main..branch --stat` first, keep only the branch's real changes, take `main` for everything else.
+- **pdf**: Extract text (and tables) from digital, text-based PDFs using pure-Python libraries (`pypdf`/`pdfplumber`), no OCR. Detects a scanned or image-only PDF up front and says so rather than returning empty output.
 - **powershell-safety**: Hard rule: never modify an existing `.ps1` file without Benny's explicit approval first; also covers authoring paste-safe PowerShell snippets for Benny. Reading and running PowerShell is fine.
 - **python**: Python conventions for Benny's work (Databricks/PySpark, pandas, pipeline libraries, FastAPI): PEP 8 style and idiom, type hints, structure, and the traps that bite most (mutable defaults, chained assignment, Spark laziness).
 - **sql**: SQL conventions and dialect guidance for Databricks SQL, Snowflake SQL, and T-SQL (UPPERCASE keywords, CTEs, explicit columns). Dialect-specific syntax and gotchas in `references/`.
