@@ -1,0 +1,38 @@
+# Running it in production
+
+A model that is technically good but too slow or too expensive dies in production, exactly like a correct pipeline that runs too slow to be useful. This file is the two things that turn a working prompt into a working system: reasoning about inference cost, and growing an architecture that survives real users and feeds itself their feedback.
+
+- [Inference: the cost/latency/throughput you must reason about](#inference-the-costlatencythroughput-you-must-reason-about)
+- [The architecture grows one component at a time](#the-architecture-grows-one-component-at-a-time)
+- [User feedback is the data moat](#user-feedback-is-the-data-moat)
+
+## Inference: the cost/latency/throughput you must reason about
+
+Even when you only consume an API and never implement any of this, you need the mental model, because it explains your latency and your bill.
+
+- **Inference has two phases with opposite bottlenecks.** **Prefill** reads the whole input at once (compute-bound) and sets **TTFT** (time to first token); **decode** generates one token at a time (memory-bandwidth-bound) and sets **TPOT** (time per output token). Total latency = TTFT + TPOT × output tokens. So *output* length, not input length, usually dominates latency — cap `max_tokens`, ban preambles, and a long input hurts TTFT more than the total.
+- **Report percentiles, never the mean.** Latency is a distribution with outliers; one 3000 ms response among nine at 100 ms pulls the mean to 390 ms and lies. Use p50/p90/p95/p99.
+- **Chase goodput, not raw throughput.** **Throughput** is tokens (or requests) per second across all users and tracks cost; **goodput** is only the share that also meets your latency SLO. Optimising blind throughput buys a cheap service that feels slow.
+- **The knobs you control on an API:** **streaming** (TPOT only has to beat reading speed, ~120 ms/token, so a chatbot feels instant while a batch job ignores TTFT entirely); a **batch API** for non-urgent work (cheaper and slower — this is delayed processing, *not* precomputed answers, which cannot work on open prompts); and **prompt caching**, which reuses an already-processed recurring prefix — a long system prompt or a document queried repeatedly — for up to ~90% cost and ~75% latency saving. Long contexts are genuinely expensive here (the KV cache grows with context length), so retrieving the *right* context still beats stuffing everything in.
+- **Model-level optimisation is not free; service-level optimisation is.** Quantization, distillation, and pruning change the model and can lower quality — the same model at two providers can benchmark differently because of it. Batching, caching, and parallelism do not touch the weights. And compare providers on **price per request**, not tokens/s, because tokenizers differ.
+
+## The architecture grows one component at a time
+
+Start with the simplest possible system — query → model → answer — and add a layer only when a concrete problem forces it, in the order that fits *your* app, not a fixed recipe. Jumping straight to an orchestrator (LangChain, LlamaIndex) hides how the system works and makes debugging harder; build without one first.
+
+1. **Context construction** — retrieval and tools that assemble what the model needs into the prompt. This is feature engineering for foundation models: the answer is only as good as the context, and a support bot that does not *fetch* the order will hallucinate it. (Retrieval depth in `references/adaptation-ladder.md`.)
+2. **Guardrails**, on input and output. Input guards mask PII before an external call (replace with a placeholder, restore via a reverse map) and block malicious prompts; output guards catch invalid JSON, hallucination, and toxicity. Track **violation rate** (attacks or bad outputs that get through) *and* **false refusal rate** (legitimate requests wrongly blocked) — optimising only the first "solves" safety by refusing everything and frustrating real users. These are the same two metrics `references/prompting.md` raises at the prompt level, recurring here as system metrics. Watch the streaming conflict: an unsafe token can reach the user before the output guard fires, and dropping guards purely for latency is a nightmare, not a tradeoff.
+3. **Router + gateway.** A **router** puts a small fast **intent classifier** (BERT or a 7B model) in front, sending simple queries to cheap models, specialised ones to specialists, and out-of-scope queries to a refusal — before any expensive call. A **model gateway** is one interface to every model (self-hosted and API): central access control so nobody passes org keys around, rate limiting, logging, cost control, and **fallback** when a provider fails.
+4. **Caching.** **Exact caching** reuses a response only on an identical query (a plain key-value store with LRU/LFU eviction). **Semantic caching** reuses on similar meaning via embeddings and a threshold — fragile, and a mistuned threshold serves a wrong answer, so be skeptical. Never cache user-specific or time-sensitive responses: cache one user's personalised answer as generic and the next user gets *their* data back.
+5. **Agent patterns and write actions** break the linear flow — loops that fetch more and retry, and write actions (send mail, place an order) that make the system far more capable and far more dangerous, since a mistake is now a wrong *action*. (Agent judgment in `references/adaptation-ladder.md`.)
+
+Underneath all of it: **observability**. Log everything (config, full prompt, tool calls, crashes), stitch logs into **traces** so you can point at the exact step a request failed, and watch for **drift** — a colleague editing a prompt template, users phrasing things differently over time, or the provider silently updating the model behind an unchanged API.
+
+## User feedback is the data moat
+
+Feedback for an AI app is not product polish — it is *data*, and data is the moat. A **data flywheel** compounds: launch early → users → feedback → better model → more users. It matches your real distribution, so competitors cannot easily copy it (this is the "best data source is your own application" point from `references/dataset-engineering.md`, closing the loop).
+
+- **Three kinds, each with a catch.** **Explicit** (thumbs, stars) is easy to read but sparse and skewed toward the unhappy. **Implicit** (did they buy the recommendation, keep the generated code) is abundant but noisy and ambiguous. **Natural language** feedback reads the conversation itself: early termination, error correction ("No…", "I meant…"), complaints, sentiment, and the model's own refusal rate.
+- **User edits are free preference data.** When a user fixes the model's output, the original is the loser and the edit the winner — exactly the (question, winning, losing) triples that align a model, at no annotation cost. So is a choice between two regenerated answers.
+- **Collect it non-intrusively and at the right moment.** Copilot's Tab-to-accept and Midjourney's upscale/variation buttons harvest rich implicit signal without asking. Ask explicitly only at onboarding, when something goes wrong, or when the model has low confidence (show two answers side by side and let the pick be preference data). Never force a choice between two answers the user cannot judge.
+- **Do not mistake feedback for truth.** Inspect the *distribution* of ratings to expose leniency, position, and recency bias, and a confusing UI produces useless data. The real danger is the **degenerate feedback loop**, where the model's own outputs shape the feedback that trains its successor and amplify the original bias — and **sycophancy**, where training on raw approval teaches the model to say what the user wants to hear even when it is wrong.
