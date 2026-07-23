@@ -1,5 +1,5 @@
 {
   "name": "outer_heaven",
   "description": "Workflow plugin: skills, hooks, and agents for how Benny and singularity-drone build.",
-  "version": "0.15.0"
+  "version": "0.16.0"
 }
