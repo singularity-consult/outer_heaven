@@ -21,6 +21,7 @@ A Claude Code plugin that bundles the skills, hooks, and agents for a consistent
 
 ## Available skills
 
+- **ai-engineering**: Applied judgment for building applications on foundation models (LLMs): when to reach for prompting vs RAG vs finetuning (start cheap, climb only on evidence), how to evaluate AI systems, defensive prompting, dataset and synthetic-data practice, inference cost/latency tradeoffs, and production architecture with user-feedback loops.
 - **caf-analytics**: A design-and-review lens for Azure analytics/data solutions, anchored in the Cloud Adoption Framework and Azure landing zones. Covers the Databricks + ADLS + Unity Catalog track and the Fabric / OneLake track.
 - **diary**: Implementation diary in the outer_heaven repo, capturing what changed, why, what worked, what failed, and what was tricky. Activates during non-trivial work and at session-end moments.
 - **distill-book**: Distill a long book into a concise, structured set of learnings by fanning it out chapter by chapter to parallel subagents, then synthesizing the short overviews. Format-agnostic (PDF, EPUB, Markdown, HTML, plain text).
