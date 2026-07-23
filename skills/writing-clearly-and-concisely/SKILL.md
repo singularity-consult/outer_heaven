@@ -18,6 +18,10 @@ Clear, concise prose. The rules come from Strunk's *The Elements of Style*. They
 - **Do not overstate.** Overstatement makes the reader distrust everything else. State what is true and let it stand.
 - **Cut qualifiers that weaken.** "rather", "very", "little", "pretty" usually dilute. Remove them or pick a stronger word.
 
+## House rule: no dashes as clause connectors
+
+Do not use the em-dash (`—`) or a double hyphen (`--`) to join clauses. This is a standing convention across every outer_heaven skill and across Benny's own prose, and it is easy to reason past because the corpus enforces it only by example. Replace the dash with the punctuation that fits the context: a colon to introduce a definition or expansion, a comma for a light aside, a period to split two independent clauses, or parentheses for a true aside. A hyphen inside a compound word (for example "self-supervision") is fine; the rule is about dashes used as connectors, not hyphenation.
+
 ## How to apply it
 
 This is a revising rule, not only a writing rule. Write the sentence, then cut. The second draft of a sentence is usually half the length of the first and says more.
