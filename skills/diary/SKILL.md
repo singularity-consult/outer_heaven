@@ -19,6 +19,14 @@ All diaries live in the **outer_heaven repo**, under `docs/diary/`, never in the
 
 Diaries about customer work stay at delivery level: name the project and describe what was built, what was decided, and what failed in the process. Keep customer-confidential detail out: data values, secrets, credentials, and proprietary business logic that is not yours to store. When in doubt, leave it out.
 
+## Check who can read the diary repo
+
+**`outer_heaven` is a public repo.** Centralizing diaries there is right for the aggregation reasons above, but it means every diary is world-readable under Benny's company name. That is fine for skills, tooling, and customer work kept at delivery level. It is not automatically fine for projects about Benny himself.
+
+Before writing a diary for a project that touches personal data -- private finances, health, family, anything he would not publish -- check what the diary would expose, not just whether it names the project. Institution names, account structures, and which systems he holds data in are a profile even when no values, credentials, or identifiers appear.
+
+Do not assume the project repo is the less private of the two. It is often the opposite: a private project repo holding personal data, and a public diary repo. If the diary would expose more than Benny has already accepted publishing, say what it would expose and let him decide before writing it. His call, made with the specifics in front of him -- not a judgement to make silently in either direction.
+
 ## File location and naming
 
 `docs/diary/YYYY-MM-DD-<slug>.md` in the outer_heaven repo.
