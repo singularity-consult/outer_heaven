@@ -7,8 +7,16 @@ This repo holds workflow capabilities and collaboration improvements only. It do
 ## What lives here, and what does not
 
 - IN: skills, hooks, agents, and the diary/insight artifacts that should travel across machines.
-- OUT: project status and knowledge (stays in memory), and sensitive personal information (health, finance, private projects) which never enters this repo.
+- OUT: project status and knowledge (stays in memory), and sensitive personal **data** -- values, amounts, balances, account identifiers, wallet addresses, credentials, names of people, and anything about health or family. None of it ever enters this repo.
 - Customer repos hold only their solutions. No agent data is ever committed to a customer repo. Diaries about customer work stay at delivery level (name the project, keep customer-confidential detail out).
+
+## This repo is public
+
+Everything here is world-readable under Benny's company name. That is what the OUT list is protecting against, and the line falls finer than "nothing about private projects".
+
+A diary about a private project may name the project and describe what was built, including which systems it integrates -- a bank, an exchange, an accounting system. Those are relationships, and they are already the level customer diaries are kept at. What must never appear is the data itself: amounts, balances, account numbers or IBANs, wallet addresses, credentials, or the names of family members. Secrets follow the stricter form of the same rule -- only secret *names*, never a key or connection string.
+
+Benny drew that boundary explicitly for the datavilla diaries after being shown what they would expose. Hold it. When a new case does not clearly fall on one side, show him what would be published and let him decide, rather than resolving it silently in either direction.
 
 ## Structure
 
