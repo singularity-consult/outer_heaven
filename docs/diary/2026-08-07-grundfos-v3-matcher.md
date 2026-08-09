@@ -874,3 +874,111 @@ by it entirely, and NO_MATCH is where the remaining recall lives — a false-neg
 would need a different sampling frame, because you cannot sample the pairs the matcher never
 proposed by looking at what it produced. That is the natural next instrument once AUTO is
 settled.
+
+## Step 6: Retiring the v2 labels and drawing a new ground truth
+
+**Author:** builder
+
+### Prompt Context
+
+**Verbatim prompt:** abridged to its operative content; the full brief was a table of
+stratum targets plus format and safety requirements. No customer names appeared in it.
+
+> Change of plan from Benny, and it clears the board. Stop costing options. We are building a NEW ground truth from the v3 engine, he labels it, then the engine is tuned against it and produces the final matched and review datasets. Everything from the v2 label world becomes history.
+>
+> **Deliverable: one blind file, 700 candidate pairs, drawn from the v3 engine.**
+>
+> **The one requirement that matters most: do not reproduce the June selection effect.** The old ground truth is blind to 271 pairs because v2 only ever proposed candidates within a state, so cross-state pairs could never be labelled. This draw must span everything the v3 engine can decide, including the populations its own rules currently reject. If a stratum is invisible in the new labels, the same trap closes again and we will not find out for months.
+>
+> [nine strata with targets summing to 700, the last being "candidates the engine generated but rejected to NO_MATCH", to be drawn from the candidate generator's output before the decision rules, not from the decision bands]
+>
+> Record a deterministic 70/30 calibrate/lock split as a column in the KEY file, never in the blind file. The engine will be tuned on the 70% only, and the 30% stays sealed until the end. Do not mention the split anywhere in the blind file, including column order or row order.
+>
+> Commit the generator. Do not tune anything yet; that is the next task, after the labels come back.
+
+**Interpretation:** Build the instrument that replaces the June labels, and design it so
+the specific blindness that wrecked the old one cannot recur.
+
+**Inferred intent:** Stop arguing about thresholds from evidence that cannot settle them, and
+buy evidence that can — while keeping one honest number at the end that the tuning never saw.
+
+### What I did
+
+Sized all nine strata against the live engine before writing the generator, because a target
+that cannot be filled is worth knowing about before it is encoded rather than after. All nine
+were fillable; the tightest was the smallest AUTO route at 30 of 36 available.
+
+Built `src/matcher_v3/gt_candidates.py`, reusing the drawing and blindness machinery from the
+earlier holdout rather than duplicating it. The one change to the existing module was making its
+`split_outputs` accept a different hidden-key schema, so the blindness assertion keeps exactly
+one implementation and the new draw could carry the calibrate/lock column.
+
+Drew 700, all strata at target. Verified determinism by md5 across repeat runs, verified the
+blind file carries no verdict, stratum or split column, verified the strata are mutually
+exclusive, and smoke-tested the abort guard live against a sentinel `_LABELLED` file. 34 tests
+added; suite 959 passed / 27 skipped. Committed as `7e86693`.
+
+### Why
+
+The recall stratum is the part that justifies the design. Every other stratum could have been
+drawn from the two output files, but "candidates the rules rejected" exists only upstream of the
+decision, in the generator's output. Drawing it from the bands would have been easy and would
+have measured nothing, because a pair the rules rejected is by definition not in either band.
+
+### What worked
+
+Assigning the 70/30 split *before* the global shuffle. It is a one-line ordering decision and it
+is the whole reason the split cannot leak: if the split were assigned after numbering, `pair_id`
+order would correlate with it and anyone reading the blind file could infer which rows were
+sealed. Checked empirically afterwards rather than trusted — the calibrate share across the ten
+deciles of `pair_id` runs 0.67 to 0.76 against a target of 0.70, which is what independence
+looks like.
+
+Splitting within each stratum rather than globally. A global 70/30 over 700 rows would leave the
+smallest stratum's 30 rows allocated by chance, and could seal almost all of one small stratum,
+so the final unbiased number would say nothing about that population. Per-stratum gives exactly
+70/30 everywhere: 21/9, 42/18, 105/45 and so on.
+
+### What didn't work
+
+Nothing failed outright this time. The one thing I had to correct mid-build was my own reuse
+plan: I first intended to copy the blind-file assembly into the new module because the key
+schema differed, which would have left two implementations of the blindness contract and
+therefore two places for it to rot. Making the existing function take the schema as a parameter
+was both smaller and safer.
+
+### What I learned
+
+The instrument has a boundary worth writing down, because it will be misread otherwise: an
+identity for which blocking produced no candidate at all cannot appear in this file, since there
+is no IIR side to put in front of a labeller. So the recall stratum measures the *rules'* recall
+over what blocking found — it cannot measure blocking's own recall. That is a real limit, not a
+rounding error, and the labels that come back will not reveal it. I stated it in the module
+docstring and the commit rather than leaving it to be discovered later, which is exactly the
+mistake the June selection effect was.
+
+### What was tricky
+
+Judging how far to trust the earlier probe. Two of its three claims were wrong when I measured
+them — the population attributed to exact-unique names was 271 rather than 282, and the
+threshold-band figure of 8 was actually 136 rows with 30 admissible. Neither error changed the
+design, but taking either on trust would have put a wrong target in the strata table. The habit
+that keeps paying here is measuring the population before encoding a target for it.
+
+### What warrants review
+
+The stratum predicates are where a silent error would hide: they are evaluated in declaration
+order and first match wins, so reordering them silently changes which population a pair is
+labelled under. There is a test asserting the intended precedence, but the ordering itself is a
+judgement worth a second pair of eyes.
+
+Twenty-one of the 700 rows carry an embedded newline in an address field. The June round lost
+rows to exactly that in Excel. The file is correctly quoted, so it is well-formed CSV, but
+anything that re-saves it can still break those rows apart, and `pair_id` is what recovers them.
+
+### Future work
+
+Tuning is the next task and it must consume only the calibrate 70%. The lock 30% should not be
+read, joined, or eyeballed until the tuning is finished, and it would be worth putting that
+enforcement in code rather than trusting discipline — a loader that refuses to return locked
+rows unless explicitly asked would make the guarantee mechanical instead of procedural.
