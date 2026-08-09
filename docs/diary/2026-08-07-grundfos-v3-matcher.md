@@ -982,3 +982,103 @@ Tuning is the next task and it must consume only the calibrate 70%. The lock 30%
 read, joined, or eyeballed until the tuning is finished, and it would be worth putting that
 enforcement in code rather than trusting discipline — a loader that refuses to return locked
 rows unless explicitly asked would make the guarantee mechanical instead of procedural.
+
+## Step 7: Redraw at 1,000 and seal the lock in code
+
+**Author:** builder
+
+### Prompt Context
+
+**Verbatim prompt:** abridged to operative content; the full brief was allocation constraints
+plus the enforcement requirement. No customer names appeared in it.
+
+> Benny has decided to go bigger up front. Redraw at **1,000 rows with a 500 calibrate / 500 lock split**, replacing the 700 entirely. He has not started labelling, so delete `gt_v3_candidates.csv` and its key and regenerate cleanly — one file, no superset bookkeeping.
+>
+> Scaling the old targets by 1.43 does not work — several pools are too small. Allocate deliberately and report your reasoning. Census the small, high-value pools rather than sampling them. `review_ge96_state_mismatch` is the population nothing has ever measured — push it toward a census. The weakest measured route deserves more weight than its population share. `auto_name_unique` should be sized to detect a collapse, not to refine a known-good number. `review_lt90` and `no_match_rejected_candidate` should not eat the budget.
+>
+> Watch the arithmetic on odd numbers: a 50/50 split of an odd stratum cannot be exact. Round deterministically and state the rule you used.
+>
+> **Also build now, not later: mechanical enforcement of the lock.** You flagged this yourself and you were right. Build the loader so it returns calibrate rows by default and refuses to return locked rows unless an explicit, obviously-named argument asks for them. Any accidental full-set read during tuning should fail loudly rather than quietly hand over the answer sheet. Test it.
+
+**Interpretation:** Reallocate a bigger budget by judgement rather than arithmetic, get the
+odd-number rounding right and say what rule was used, and make the sealed half unreachable by
+accident rather than by discipline.
+
+**Inferred intent:** Buy enough labels to settle the open questions in one round, and remove
+the possibility that the final honest number is quietly contaminated during tuning.
+
+### What I did
+
+Worked the allocation out on paper against the live pool sizes before touching the code, because
+four of the nine pools are smaller than a 1.43x scaling would have demanded. Censused the three
+small high-value pools, pushed the never-measured population to 220 of 282, over-weighted the
+weakest route, and held the two low-information strata to 88 rows between them.
+
+Then the odd-number problem. Two strata have odd targets (125 and 111). Flooring both gives
+499/501, which is defensible but contradicts the agreed 500/500. I made the spare row alternate
+by rank among the odd strata in sorted name order — first to lock, second to calibrate — which
+lands exactly 500/500 while keeping both censuses intact.
+
+Built the lock enforcement, regenerated, verified determinism by md5, verified the split is
+50/50 in all nine strata, and smoke-tested both the abort guard and the loader live against the
+real key. 19 more tests; suite 978 passed / 27 skipped. Committed as `5158c66`.
+
+### Why
+
+The alternating rule is worth the small extra complexity because a split that does not add up to
+the number everyone has agreed on is an invitation for someone to "correct" it later, and any
+correction after labelling starts would silently reshuffle which rows are sealed.
+
+### What worked
+
+Designing the loader so the dangerous path is the one that raises. The obvious implementation is
+a boolean `include_locked=False`, but a boolean fails badly: `include_locked=1`,
+`include_locked="no"` and any truthy typo all silently unseal. Requiring a long explicit token
+and raising on anything else non-empty means the only two outcomes are the calibrate half or a
+loud error. The convenience wrapper for the tuning path has no unseal parameter at all, so that
+call site cannot reach a locked row by any argument.
+
+Checking split leakage empirically again rather than assuming the earlier reasoning still held
+after the ratio changed. Calibrate share across the ten deciles of `pair_id` runs 0.44 to 0.57
+against a target of 0.50 — that is independence, and it is cheap to confirm.
+
+### What didn't work
+
+Nothing failed outright. Two existing tests broke as intended when the targets and ratio changed
+(`test_the_targets_sum_to_the_agreed_size`, `test_the_split_is_seventy_thirty_within_every_stratum`),
+which is the tests doing their job — the assertions were pinned to the old agreement, so changing
+the agreement had to be visible.
+
+### What I learned
+
+The alternating rounding rule only balances when the NUMBER of odd strata is itself even. With
+three odd strata it would give 500/500 minus one again. That is a property of the rule, not of
+this allocation, so I added a test asserting the odd count stays even. Without it, a future
+target change from 120 to 121 would silently break the headline split and nothing would say so.
+
+### What was tricky
+
+Judging how small the recall stratum could get. It is described as the only recall instrument,
+which argues for protecting it, but its population is 17,018 and any affordable sample is a wide
+interval. At 48 rows it can detect a large leak and cannot measure a small one. I kept it small
+and wrote that limitation into the stratum's own rationale rather than into a report that will be
+read once, because the number will be quoted long after this conversation.
+
+### What warrants review
+
+The allocation is a judgement about where risk sits, not a measurement, and it is the part most
+worth disagreeing with. Specifically: 120 rows for a route that is 60% of the AUTO band is
+deliberately thin, and it rests on the old 99.5% measurement still being roughly right in the new
+label world. If that assumption is wrong, this draw will under-measure the largest population in
+the system.
+
+Thirty of the 1,000 rows carry an embedded newline in an address field, up from 21 at 700. The
+file is correctly quoted, but anything that re-saves it can still split those rows, and `pair_id`
+is what makes that recoverable.
+
+### Future work
+
+Tuning is next and must consume only the calibrate half through `load_labels`. The seal is now
+structural, but nothing stops a future caller reading the key CSV directly with pandas and
+filtering by hand; if that becomes a real pattern, the key file itself should be split into two
+files so the locked rows are not even present in the one the tuning code opens.
