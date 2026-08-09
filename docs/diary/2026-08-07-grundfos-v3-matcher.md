@@ -735,3 +735,142 @@ baseline over the same 663 rows I get 77. The difference comes from reconstructi
 identity keys by re-canonicalising its raw names, which is not guaranteed to reproduce
 Deliverable A's own path. Small, but it should be reconciled rather than left as two numbers in
 circulation.
+
+## Step 5: Blind holdout of the AUTO band
+
+**Author:** builder
+
+### Prompt Context
+
+**Verbatim prompt:** reproduced with customer names left as-is only where none appear; no
+sanitisation was needed beyond the project name.
+
+> Good work. One more deliverable before this is handed over, then stop. Benny asked for it specifically.
+>
+> ## Generate a blind holdout of the NEW AUTO pairs from RUN_B2
+>
+> Why: your 99.1% is measured against a ground truth that only covers 324 of the 2,150 AUTO identities. The rest have never been labelled by anyone. Project history says that gap matters — in June a threshold that measured fine against the ground truth collapsed to 34% marginal precision on a blind holdout of the pairs the GT did not cover. That method is Benny's, it has caught a real disaster once, and it is the only thing that can speak for the new population.
+>
+> Do NOT change any threshold or rule for this. `name_auto`=96 and the [solar-energy company] tie-break are with Benny; leave both exactly as they are. This is measurement plumbing only.
+>
+> ## Method (follow the established pattern, do not invent one)
+> Prior art, read it first, READ-ONLY in the shared checkout: `scratch\gen_holdout_new_auto.py` and `gen_holdout_review.py`. Same shape: generator script, blind sample file, separate hidden key file.
+>
+> 1. **Population:** the AUTO band of RUN_B2.
+> 2. **Exclusions:** every pair whose identity is already covered by the adjudicated ground truth. Note the trap: the June holdout keys are keyed to the DEAD v2 identity space. If you can re-derive their identities by name + geography reliably, exclude them too; if you cannot, say so explicitly in your report and exclude only what you can defend. Do not silently skip an exclusion.
+> 3. **Stratify per route**, and prefer a census of the small routes over a sample. Target roughly 450 rows total unless you can argue for a different number.
+> 4. **`parent_group` (111) goes in its own stratum and stays visibly marked.** `match_level` is a claim type, not a verdict — keep it visible. Everything else stays hidden.
+> 5. **Blind means blind:** the sample file carries PT name + role + raw location, IIR name + raw location, an empty `label` column, and nothing else. ZERO verdict columns. Verify that by listing the emitted columns in your report.
+> 6. **Hidden key file** carries route, stratum, scores, and both identities, joined to the sample by `pair_id`.
+> 7. **Determinism:** fixed seed, byte-identical across repeat runs, verified by hashing — not assumed.
+> 8. **Abort-guard:** the generator must refuse to run if it would overwrite any `*_LABELLED.csv`.
+>
+> ## Report back
+> Population size, what was excluded and how many, per-route strata counts drawn against available, the emitted column list of the blind file, and — explicitly — what the holdout does NOT cover.
+>
+> One flag for Benny: if he ends up moving `name_auto`, the AUTO population changes and this holdout is stale before he labels it. Say whether you think that risk is real enough to hold the labelling until he has ruled.
+
+**Interpretation:** Build the instrument that can speak for the 85% of AUTO nobody has ever
+checked, following an existing method rather than inventing one, and prove the blindness rather
+than claiming it.
+
+**Inferred intent:** Guard against the specific failure this project has already suffered once —
+a calibration that looks healthy against the labelled slice and is rotten on the unlabelled
+remainder.
+
+### What I did
+
+Read both prior-art generators before writing anything, and inherited their shape: whitelist the
+blind columns, keep a separate hidden key joined on `pair_id`, fixed seed, abort on a
+hand-labelled file. Built it as `src/matcher_v3/holdout.py` with a pure core rather than a
+`scratch/` script, because `scratch/` is git-ignored in this repo and the deliverable had to be
+committed.
+
+Population 2,150 AUTO; 216 identities excluded as covered by the adjudicated set, 625 by the
+June holdout keys, leaving 1,326 fresh. Drew 453 across five strata, weighted by risk rather
+than population share: the weakest route got the heaviest sample and the best-covered route was
+sized only to detect a collapse. Censused the two small routes. Verified determinism by md5
+across repeat runs, verified blindness by construction and by inspecting the emitted file, and
+smoke-tested both abort guards live. 34 tests; suite now 932 passed / 27 skipped. Committed as
+`84d0d41`.
+
+### Why
+
+The exclusions were the part worth being slow about. A holdout that quietly re-shows Benny
+companies he has already judged is worse than no holdout, because it reports a precision number
+that has absorbed his earlier opinion and looks blind.
+
+### What worked
+
+Measuring the v2-to-v3 re-derivation instead of guessing at it. The brief flagged the June keys
+as belonging to a dead identity space and left it open whether they could be recovered. They
+carry `pd_name_canon` but no role, so I checked how many of those canonical names still exist as
+a v3 PT `name_canon`: 804 of 808, 99.5%. That turned "we cannot defend this exclusion" into "we
+can defend the name half exactly", and the four that do not re-derive turn out to be absent from
+the v3 PT universe altogether, so they cannot leak into AUTO even in principle. The exclusion is
+therefore complete, not partial — which is a much better answer than the brief anticipated.
+
+Building the blind file by SELECTING a whitelist rather than dropping a blacklist. A column
+added upstream later cannot appear in Benny's file by default; it has to be added deliberately.
+The test suite asserts the whitelist and the verdict blacklist are disjoint, so the contract
+fails loudly rather than leaking quietly.
+
+### What didn't work
+
+One genuine bug, found by a test I had written to be pedantic. `draw()` raised
+`KeyError: 'auto_route'` when handed an empty frame with no columns:
+
+```
+tests/test_matcher_v3_holdout.py::test_drawing_from_nothing_returns_an_empty_frame
+E   KeyError: 'auto_route'
+pandas/core/indexes/range.py:525: KeyError
+```
+
+Production could not reach it, because the frame always arrives from `select_fresh()` with its
+columns intact. I fixed the code rather than only the test: an empty AUTO band should report
+"nothing drawn", not raise three frames deep.
+
+### What I learned
+
+The missing role in the June keys is not the obstacle it first looks like. Excluding both roles
+of a matched name over-excludes, but the asymmetry of the costs makes that trivially the right
+call: over-exclusion costs a few rows of sample out of 1,326 fresh, under-exclusion costs the
+one property the entire exercise depends on. Worth stating as a general rule for holdout work —
+when an exclusion is uncertain, err toward excluding, and report the over-reach rather than
+optimising the sample size.
+
+### What was tricky
+
+Deciding the stratum weights, because the intuitive answer is wrong. Proportional sampling would
+have given the largest route the most rows, but that route already has 210 ground-truth rows
+behind it at 99.5%, and the point of a holdout is to measure what is NOT measured. So the
+weakest route (97.5%, and carrying a rescue condition that is new in v3) got the heaviest weight
+and the largest route got enough only to detect a collapse rather than to refine a number we
+already trust. I recorded the rationale on each stratum in the code, because a future reader
+will otherwise "fix" the weights back to proportional.
+
+The other judgement was how much IIR address text to show. A company can hold up to 92
+locations, and truncating to the first few would have looked complete while quietly weakening
+Benny's ability to judge. I show all of them, sorted; the location set is exactly the evidence
+that decides whether the PT site belongs to that company.
+
+### What warrants review
+
+The staleness risk is the thing to decide before any labelling starts, and I think it is real
+enough to hold on. Two open rulings — `name_auto` and the tie-break — both change the AUTO
+population directly. Moving `name_auto` down admits new pairs into AUTO and the fresh pool
+shifts underneath the sample; the tie-break changes which IIR company some pairs point at, so
+rows already labelled could become rows about a different pair. Either would strand part of the
+labelling. Since the generator is deterministic and cheap to re-run, the cost of waiting is
+close to zero and the cost of not waiting is Benny's own hours.
+
+Worth a second opinion on the stratum weights, since they encode a judgement about where risk
+sits rather than a measurement.
+
+### Future work
+
+The holdout covers only the AUTO band. REVIEW (3,446 rows) and NO_MATCH (17,018) are unmeasured
+by it entirely, and NO_MATCH is where the remaining recall lives — a false-negative holdout
+would need a different sampling frame, because you cannot sample the pairs the matcher never
+proposed by looking at what it produced. That is the natural next instrument once AUTO is
+settled.
