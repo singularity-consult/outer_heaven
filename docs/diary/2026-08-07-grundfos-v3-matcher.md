@@ -515,3 +515,223 @@ consumer from reading them as identity.
 
 Deliverable B in flight. The public-repo naming question above needs Benny's answer before this
 file is committed.
+
+## Step 4: Deliverable B — first run, two defects, and 222 tests
+
+**Author:** builder
+
+### Prompt Context
+
+**Verbatim prompt:** reproduced below with customer company names replaced by role
+descriptions in square brackets, for the reason the lead set out in Step 3. Nothing else is
+altered.
+
+> Grundfos Projects Today <-> IIR matching, Deliverable B, resumed after a machine crash. You are a FRESH builder; the previous one died mid-task. Read this whole brief before touching anything.
+>
+> ## Where to work
+> Worktree: `C:\claudes_folder\repos\grundfos-iir-matching\.claude\worktrees\v3-matcher`
+> Branch: `feat/v3-matcher`, HEAD = `2ed2ab0`. Work ONLY there. Do not touch the shared checkout at `C:\claudes_folder\repos\grundfos-iir-matching\` other than reading.
+> Git identity is already configured: `singularity-consult <benny@singularityconsult.dk>`. The repo has NO remote (commit-only, cannot push). NEVER add a Claude co-author trailer or set Claude as author.
+>
+> ## What you are inheriting, and its exact status
+> Commit `2ed2ab0` is a RESCUE commit. It contains `src/matcher_v3/` — nine modules (`__init__, adjudicate, evidence, candidates, rules, parents, crosswalk, validate, runner`, 1,714 lines) written by the previous builder between 20:57 and 21:11 on 7 August, when the machine died. Their status:
+>   * all nine import cleanly, so they are syntactically complete
+>   * there are ZERO tests for any of them
+>   * the matcher has NEVER been run, not once, against anything
+>   * nothing else imports the package, so the existing suite is unaffected
+>
+> CRITICAL: the docstring in `rules.py` claims its thresholds "were chosen against the adjudicated ground truth". No run exists that could have produced that calibration, and no adjudicated calibration set has ever been written to disk. Treat every number, threshold and claim in those docstrings as UNVERIFIED assertion, not measurement. If a threshold turns out to have no evidence behind it, say so plainly in your report rather than back-filling a justification.
+>
+> ## Environment trap — read before anything else
+> `output/` is git-ignored. Everything resolves through the `GRUNDFOS_OUT_DIR` env var (default `<repo>/output`). The worktree already has its own `output/` with `calib/` populated by the previous builder (`gt_v3_remapped.csv`, `gt_v3_contradictions.csv`, `gt_v3_unmapped.csv`, `gt_v3_remap_report.txt`), plus rebuilt v3 universes. Verify what is there before assuming.
+>
+> Set `GRUNDFOS_OUT_DIR=<worktree>\output` and `PYTHONPATH=<worktree>\src`. NEVER write into the shared checkout's `output/` — main's artifacts and Benny's IRREPLACEABLE hand-labelled files live there (`validation_ground_truth.csv`, `*_LABELLED.csv` and their `.bak`). Those must never be modified, overwritten or regenerated under any circumstance.
+>
+> Source extracts (READ-ONLY, customer data, never modify): `C:\claudes_folder\projects\grundfos_pd_iir_matching\base_files\` — `pt_company_data.csv`, `iir_company_data.csv`.
+>
+> Expected universe invariants when rebuilding (`python -m base_build.identity_runner_v3`): PT 22,614 identities (14,561 promoter / 8,053 awardee) over 33,331 projects; IIR India 19,945 companies over 40,141 address rows. If your numbers differ, STOP and report — do not proceed on a different base.
+>
+> ## Context you need: the v3 identity model
+> Grundfos delivered new extracts at a different grain. PT is project grain (65,969 rows), IIR is company x address grain worldwide (910,268 rows, 40,141 in India). Commit `3a767fc` rebuilt both universes:
+>   * PT identity = `(role, name_canon)`. NOT name+state+city: geography is what we know ABOUT a company, not who it is.
+>   * IIR identity = `COMPANY_ID`, with Account and Plant addresses carried as a location SET.
+>   * Geography, addresses, domains and group labels are evidence SETS on both sides. The matcher asks whether the sets INTERSECT, never whether they are equal. 750 PT identities legitimately span more than one state; IIR companies hold a median of 2 locations, up to 92.
+>
+> Commit `c66bd72` (Deliverable A) remapped the June ground truth onto this model: 670/700 map on both sides, 668 labelled survive. The old `iir_id` is DEAD as a join key (0 of 305 values present in the new extract; 9-digit vs 7-digit, different systems).
+>
+> ## Benny's rulings — these are FIXED DATA, never re-derived
+> Already encoded in `adjudicate.py` as a declarative table. Verify the encoding matches these; do not change the rulings themselves:
+>   * [a north-eastern construction firm] and [a rail-signalling engineering firm] — DROPPED as unadjudicable (byte-identical June rows carrying both labels). Denominator 668 -> 663.
+>   * [a state-owned coalfield operator] — all 9 rows become 1.
+>   * [a textiles manufacturer] — both rows become 1; IIR's "[...] Group" record at the company's own registered address IS the company.
+>   * [a conglomerate's real-estate arm] — both rows stay 0. Correct match is the PARENT record, which is a required new match, not a label change.
+>   * [a solar-energy company] — both rows stay 0, flagged as a missing-match REGRESSION CASE: IIR holds the right entity under a second record. A correct matcher must produce a match this ground truth cannot reward it for.
+>   * canon vs core fallback: stays OFF. The previous builder's refusal to tie-break on lowest company_id was right and stands.
+>   * Parent-level matching, approved: when a PT company is NOT found in IIR but its declared `PT_GROUP_COMPANY` IS, match to the group record and mark it. Scope it exactly there and nowhere wider — NEVER infer a parent from address or email domain (both were measured and fail hard). Output columns `match_level` (`exact`|`parent`), `pt_group_company`, `pt_group_company_iir_id`. Measured ceiling: 111 of 22,614 identities (0.5%), 370 rows, 77% concentrated in two conglomerates. It is a small correct feature — do not let it eat the effort that belongs to recall.
+>
+> ## Hard invariants (violating any of these is a failed delivery)
+>   * Determinism: byte-identical output for fixed input. Any tie-break must be deterministic; never randomness, never set-iteration order. Verify by hashing outputs across repeated runs, do not assume.
+>   * System keys (`COMPANY_ID`, `PROJECT_ID`, `ORDER_ID`) come from three unrelated systems: they are for output and join-back only. Never compare, score or block on them. This is a rule Benny imposed after a real join-bug class.
+>   * No review layer exists in production — matches are never revisited by a human downstream. Auto-precision is everything.
+>   * Do not tune anything by editing labels. The rulings above are the only permitted changes to the ground truth, and they are already encoded.
+>
+> ## What B is actually for
+> Precision is NOT the problem: the shipped v2 matcher measures 99.1% on AUTO against the remapped ground truth (314 correct / 3 wrong). The problem is RECALL: **31% of the labelled set gets no opinion at all, and 79 of those are true matches.** That gap is the target.
+>
+> Warning Benny issued explicitly: his labelling shows signs of having judged geographic CO-LOCATION rather than legal identity (the clearest case: the same IIR company scored 1 against one PT row and 0 against another, the only difference being whether the addresses sat in the same suburb). Do NOT silently correct for it. But if your calibration lands on a threshold that only makes sense under a co-location reading, SAY SO EXPLICITLY rather than fitting to it. A number that is honest about being weaker is worth more than a better one that has absorbed the labeller's mistake.
+>
+> ## Your task
+> 1. Read the nine `matcher_v3` modules critically. They are a dead colleague's unvalidated draft, not a foundation to be trusted. Report anything that looks wrong, unfinished, or asserted without evidence — especially in `rules.py` thresholds and `validate.py`.
+> 2. Write full test coverage in the repo's existing pytest style, hermetic, against tiny hand-built universes rather than the 20k-company real one, so tests state contracts rather than re-deriving numbers. Existing suite baseline in this worktree: 676 passed / 27 skipped (the skips are old-data-world tests whose source file no longer exists, plus one that gates on `scratch/out_v2` which exists only in the shared checkout — leave all of them skipped). Do not break the suite.
+> 3. Produce the adjudicated calibration set from `adjudicate.py` and RUN the matcher for the first time.
+> 4. Report numbers, not adjectives: AUTO / REVIEW / NO_MATCH counts, precision and recall against the adjudicated ground truth (denominator 663), broken down PER ROUTE, and specifically how much of the 79-true-match no-opinion gap gets closed. Report parent-match rows separately. Report whether the [solar-energy company] regression case is now matched correctly.
+> 5. Commit on `feat/v3-matcher` when validated. Do NOT merge to main.
+>
+> Follow the `outer_heaven:python` skill conventions. If you hit something that needs Benny's ruling, stop and report rather than deciding it yourself — that is what the previous builder did correctly with the tie-break, and it was the right call.
+
+**Interpretation:** Take a dead colleague's never-executed draft, distrust every claim in it,
+prove what is true by running and testing it, and report measurements rather than adjectives.
+
+**Inferred intent:** Convert an unvalidated artefact into something Benny can stake a delivery
+on. The deeper intent is epistemic: separate what has been *measured* from what was merely
+*asserted*, because the previous builder's docstrings had blurred the two.
+
+### What I did
+
+Read all nine modules before touching anything, then verified the environment rather than
+trusting the brief: the universes matched the stated invariants exactly (22,614 PT identities,
+14,561 promoter / 8,053 awardee, 19,945 IIR companies over 40,141 location rows), though only
+after reading them with pandas — a naive line count gave 23,008 because `name_raw` contains
+embedded newlines inside quoted fields. Baseline suite confirmed at 676 passed / 27 skipped.
+
+Ran `adjudicate.py` against the real remapped ground truth before running anything else, because
+it was the cheapest way to test the brief's central warning. It came out exactly right: 668
+mapped-and-labelled rows in, 5 dropped, 663 out, all six rulings hitting real rows
+(`unmatched_rulings` empty), zero remaining contradictions, 515 label-1 / 148 label-0. The
+hand-entered identity keys in that table were correct.
+
+Then ran the matcher for the first time, and afterwards analysed the output rather than
+accepting the summary: per-route precision, the regression cases, a preemption audit, and a
+determinism check by copying outputs aside and re-running under the same `--run-id`, comparing
+md5. Fixed two defects the run exposed, extracted the decision precedence into a pure
+`decide_identity()` so it could be tested without I/O, corrected the false docstring claims, and
+wrote 222 hermetic tests across eight files. Final suite: 898 passed / 27 skipped, the skip set
+unchanged. Committed as `4d6a920`.
+
+### Why
+
+The brief's framing — treat the docstrings as assertion, not measurement — turned out to be
+exactly the right instrument. Two of the previous builder's claims were not merely unproven but
+false, and both were only visible by running the thing and measuring. Extracting
+`decide_identity()` was not gold-plating: the worst defect lived in the middle of a 40-line loop
+inside the only module that does file I/O, so there was no way to pin it with a test until it
+was pulled out.
+
+### What worked
+
+Running `adjudicate.py` first, before the matcher. It is the cheapest module to validate, it
+gates everything downstream, and confirming 668 -> 663 with all six rulings landing meant that
+when the matcher numbers looked odd later, the ground truth was already off the suspect list.
+
+Auditing the parent rule for preemption *before* it could be dismissed as a theoretical worry.
+Reading `runner.py` suggested the parent branch ran before the ordinary decision and could
+therefore override it; rather than assert that, I measured it, and found exactly one identity
+affected. The decisive evidence was arithmetic: the code produced 112 parent matches while Benny
+had measured the ceiling at 111. That one-row discrepancy was the bug, and it meant the fix
+could be justified from Benny's own measurement rather than from my reading of his intent.
+
+### What didn't work
+
+The matcher fails one of the two regression cases, and this is the headline finding. The
+[solar-energy company] identity matches the WRONG IIR company and lands in REVIEW rather than
+AUTO. Two independent causes, both measured:
+
+Candidate selection picks the wrong company by 0.357 points. PT's canonical name is
+`<FIRM> GREEN ENERGY LIMITED`; both candidates share the discriminative key `<FIRM>`, both sit
+in the same city and state, so geography cannot separate them and selection falls through to
+highest name similarity. Names below are structurally faithful with the firm token masked; the
+scores are the real measured ones:
+
+```
+IIR record A '<FIRM> ENERGY LIMITED'                 -> 94.643   (chosen, WRONG)
+IIR record B '<FIRM> GREEN ENERGY PRIVATE LIMITED'   -> 94.286   (correct)
+```
+
+The blend is `0.5*token_set_ratio + 0.5*token_sort_ratio`. Each candidate is a token subset or
+superset of PT's name, so both score 100 on `token_set_ratio` and the decision falls entirely to
+the length-sensitive `token_sort_ratio` — which penalises the correct candidate for carrying the
+legal filler `PRIVATE` more than it penalises the wrong one for dropping the content word
+`GREEN`. The scorer cannot tell an identity-bearing token from a legal-form token, so it prefers
+the shorter, wronger name.
+
+Even with the right candidate selected it would still not auto-confirm: 94.286 is below
+`name_auto = 96`. So the docstring's claim that route 4 "is the route that catches [this pair]"
+is false twice over. I pinned the real number in a test so the claim cannot be restored.
+
+I did not fix either cause. The tie-break order is Benny's own documented rule and `name_auto`
+is a calibration value; changing either is his call, not mine.
+
+### What I learned
+
+`process.cdist` in the bulk fuzzy path is called with `dtype=np.uint8`, so the block-level argmax
+runs on integer-truncated scores while the classifier re-scores the chosen candidate with the
+full float `name_score`. The two can disagree by up to about half a point. It does not make the
+output inconsistent — the reported score always describes the candidate that was actually chosen
+— but it means candidate *selection* is slightly coarser than the decision that follows it, and
+in a 0.357-point contest like the one above that is not a comfortable margin.
+
+The three AUTO precision failures are all pairs whose canonical names are byte-identical to the
+IIR company's — a port-services company and a chemicals manufacturer, each matched to a record of
+exactly the same name and labelled 0. That is worth stating plainly: the entire measured
+precision loss of the AUTO band consists of pairs where the legal names agree exactly. It is
+consistent with the co-location bias Benny warned about, and it means 99.1% is more likely to be
+understating the matcher than flattering it.
+
+### What was tricky
+
+Deciding whether the parent-precedence fix was mine to make. The brief was emphatic that
+anything needing Benny's ruling should be escalated, and the parent rule's scope was explicitly
+"exactly there and nowhere wider". What resolved it: the fix *narrows* the rule back to Benny's
+own precondition rather than widening it. His ruling says "when a PT company is NOT found in
+IIR", and a company the matcher auto-confirms has plainly been found — just spelled differently
+by IIR, in the case at hand a bracketed acronym appended to the name. The 112-versus-111 count
+confirmed it independently. I still flagged it prominently rather than burying it in the diff.
+
+The confidentiality constraint cuts against the diary skill's instruction to record the verbatim
+prompt, because the prompt names six customer companies and this repo is public. I sanitised the
+prompt block to role descriptions and said so at the top of it. Worth Benny settling as a general
+rule, since the tension will recur on every customer-project diary: the skill says verbatim, the
+global memory rule says never.
+
+### What warrants review
+
+The two unfixed selection issues are the ones to look at, and both need Benny's ruling rather
+than more engineering. First, whether the similarity tie-break should prefer the candidate that
+covers all of PT's content tokens over the one that merely scores highest — that is what would
+fix the regression case, and it is a change to a rule Benny wrote. Second, whether `name_auto`
+at 96 is right when the case Benny himself nominated as the target sits at 94.29.
+
+The parent-precedence change is the only behavioural change to output in this commit: it moves
+exactly one identity from a parent match to its own exact match. Worth confirming that reading of
+his ruling is what he meant.
+
+One measurement worth Benny's eye: four ground-truth rows labelled 1 are matched by the system as
+parent matches (a textiles group against its own group record) and are therefore scored as
+NO_OPINION, because parent matches are deliberately excluded from precision. So the recall figure
+is conservative by four rows. That the labeller marked a group record as a true match is the same
+judgement he made in the ruling on the textiles manufacturer — which suggests "the group record
+IS the company" may be a pattern rather than a one-off.
+
+### Future work
+
+The recall gap is real but only partly closed: NO_OPINION rows fell from 202 to 159 and silently
+missed true matches from 77 to 67, so about 13% of the gap. Recall moved 85.0% -> 87.0% while
+AUTO precision moved 99.4% -> 99.1%. The remaining 67 are where the next iteration's value is,
+and the [solar-energy] diagnosis above is probably representative of a whole class: near-twin
+names inside one state that the blend cannot rank correctly.
+
+Note also that the brief quotes the gap as 79 true matches; measured directly against the stored
+baseline over the same 663 rows I get 77. The difference comes from reconstructing the baseline's
+identity keys by re-canonicalising its raw names, which is not guaranteed to reproduce
+Deliverable A's own path. Small, but it should be reconciled rather than left as two numbers in
+circulation.
