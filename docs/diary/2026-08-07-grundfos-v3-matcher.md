@@ -1324,3 +1324,121 @@ rules plus human confirmations, while the code would now produce 2,744 auto-conf
 own. That is intended — the rules exist for the next run — but it is exactly the kind of split
 that becomes confusing three months later, and the next run should collapse it by regenerating
 from the new rules and re-measuring.
+
+## Step 10: The high-cost probe, and a search built to test a ruling
+
+**Author:** builder
+
+### Prompt Context
+
+**Verbatim prompt:** abridged to operative content. Customer and company names replaced with
+role descriptions in square brackets.
+
+> Benny has ruled on the parent/subsidiary question and wants a third output.
+>
+> He built a hypothesis sample: the ~1,000 highest-cost projects, on the theory that expensive projects mean larger firms, which are likelier to appear in IIR. I measured 35.0% matched, 24.4% review, 40.1% no match against the population's 10.8%. Verify this yourself; do not take my numbers on trust.
+>
+> The biggest misses split into two classes: **foreign parent in PT, Indian subsidiary in IIR** ([a data-centre operator], [a rail transport multinational], [an oil major]) — the company is inside our India slice under a different legal name; and **Indian public bodies genuinely absent from IIR** ([a metro authority], [a railway zone], [an irrigation project], [a national ministry]) — zero hits anywhere in the 910k global file.
+>
+> **Benny's ruling: the first class SHOULD match.** He is aware this sits against his June rule that group units are distinct legal entities; here the PT field is a project sponsor, not a legal party.
+>
+> **Do not build that rule yet.** Build the probe output first — it is the instrument that produces the evidence. A rule fitted to zero measured rows is exactly what we have avoided all day. Make sure the candidate search can surface subsidiary-style candidates, so his ruling becomes testable rather than assumed.
+>
+> The candidate search for the no-match rows must be deliberately wider than production blocking — no state block, and reach for subsidiary-style names. Where a row has no plausible candidate at all, emit it with an empty IIR side rather than dropping it — "nothing exists" is a finding.
+
+**Interpretation:** Verify the thesis, then build the file that can turn a ruling into
+measured rows — including the ability to say "nothing exists" where that is the truth.
+
+**Inferred intent:** Keep the discipline that has held all day — no rule without evidence —
+while building the one instrument that can generate the evidence the ruling needs.
+
+### What I did
+
+Verified the thesis independently (35.2% / 24.5% / 40.3%, 3.28x lift — the coordinator's
+numbers were right), then built a wide search and iterated it against the twelve cases named in
+the brief until all twelve behaved. Emitted 1,007 rows with 500 pre-filled. 1,110 tests passing.
+Committed `b3d2569`.
+
+### Why
+
+The whole file turns on one distinction: a foreign parent that genuinely has an Indian
+subsidiary, versus a public body that genuinely has nothing. Both look identical to a
+string matcher. Getting that boundary right was the task; everything else was assembly.
+
+### What worked
+
+Refusing to accept the first version. It reported "no candidate: 0", which was obviously
+wrong — the global-fuzzy fallback always returns *something*, so bodies with no IIR presence
+were being handed a nearest-string. Chasing that produced the finding the file rests on.
+
+Measuring token rarity when similarity failed. The two classes are inseparable by name score —
+the true subsidiary scored 66 and the noise scored 68 — but the connecting token told them
+apart: the real pair shared a token appearing once in IIR, the noise shared one appearing nine
+times. That is a mechanism, not a threshold, and it is why the file can be trusted to say
+"nothing".
+
+### What didn't work
+
+Three wrong versions before the right one, each caught by the named cases rather than by
+reasoning.
+
+First, a similarity floor. Useless: the true and false pairs sit within two points of each
+other.
+
+Second, rarity alone. It broke on a genuine near-name — a global engineering firm's Indian arm
+shares a token appearing in six IIR names, exactly as often as the word "railway" does. Rarity
+would have discarded a real match to exclude a fake one.
+
+Third, rarity OR high similarity, which still leaked a national ministry into a proposal against
+a different ministry at similarity 85.7 — two administrative names resembling each other because
+both are "Ministry of X, Government of India". The fix was not another threshold but the filler
+list: administrative and geographic descriptors belong there alongside legal forms, and once
+they are stripped a purely descriptive name yields no identifying token at all and correctly
+returns nothing.
+
+### What I learned
+
+"No plausible candidate" has to be an explicit, reachable outcome or a search will always
+manufacture one. The global-fuzzy fallback felt like generosity — surely a candidate is better
+than none — but for a body absent from the register it produces a pair that cannot be judged,
+and a labeller confronted with nonsense either wastes the row or, worse, talks themselves into
+it. Removing the fallback entirely made the file more useful, not less.
+
+Related: the filler list is doing identity work, not cosmetic work. Stripping "Railway" and
+"Ministry" is what lets the search distinguish a company from a function. That is the same
+insight the repo's `match_key` already encodes for legal forms, extended to administrative
+language.
+
+### What was tricky
+
+Holding the line on not building the matching rule. The ruling is clear, the mechanism is
+visible in the data, and the search now finds these pairs reliably — it would have taken twenty
+minutes to promote them. But the population is entirely unmeasured, and every rule shipped today
+rested on a census. Building it now would have been the first exception, on the thinnest
+evidence of the lot.
+
+A second one worth recording: the cost gradient does not continue inside the probe. Matched rates
+by cost quartile run 33.5 / 26.6 / 43.1 / 37.7 — no relationship. The thesis holds against the
+population but cost carries no signal within the top 1,000, which means the mechanism is
+probably firm size or prominence rather than cost. Benny's instrument works; his stated reason
+for it may not be the reason it works.
+
+### What warrants review
+
+Both plausibility thresholds are judgement, not calibration — fitted to twelve named examples
+rather than to labels. They are stated as such in the module and in the commit. The file Benny
+labels is what will test them, and the first thing to check when those labels return is how many
+`proposed_candidate` rows he marks 0, and whether the ones he marks 1 cluster on either arm of
+the rule.
+
+The 226 rows returning nothing are the other half of the finding. If he confirms that most are
+genuinely absent from IIR, that is a permanent ceiling on matching for public-sector sponsors and
+should be said plainly to Grundfos rather than pursued.
+
+### Future work
+
+The parent/subsidiary rule itself, once these labels exist. The search already demonstrates the
+retrieval works; what is missing is a measured precision for it and a scoped condition, and both
+come from this file. If it lands well, it is the first rule in the project able to reach matches
+that BLOCKING misses rather than ones the decision rules reject — which is the gap that has been
+on the record since the ground-truth draw.
