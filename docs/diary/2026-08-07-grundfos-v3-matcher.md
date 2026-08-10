@@ -1202,3 +1202,125 @@ which extrapolates to roughly 1,400 true matches inside the 17,018 identities th
 worked on, and it is where the next iteration's value is. It also cannot be reached by threshold
 changes: the missed matches sit at name scores in the 50s and 60s, so it needs a different
 signal rather than a looser one.
+
+## Step 9: The review pass, and teaching the engine what it proved
+
+**Author:** builder
+
+### Prompt Context
+
+**Verbatim prompt:** abridged to operative content. Customer names replaced with role
+descriptions in square brackets.
+
+> Benny worked through the review pass and stopped partway. Two tasks: ship what he confirmed, then teach the engine what his labels proved, so future runs do not need him.
+>
+> 1,478 labelled — 739 match, 739 non-match. Tier 1 (90/90) and tier 2 (222/222) are censuses. Tier 3 is 1,108 of 1,440. Tiers 4-6 are **unusable** — the 58 were not sampled, they were whatever he happened to click.
+>
+> **Task 1** — matched becomes 2,432 engine-asserted + 739 human-confirmed = 3,171, with a provenance column. The 739 non-match are dropped entirely. The 1,686 unlabelled stay in review.
+>
+> **Task 2** — Tier 1 to AUTO. Tier 2 to AUTO (97.7%); look at the 5 failures first and if nothing separates them, say so and take the rule as measured. Tier 3 to REVIEW as an explicit rule so a later threshold change cannot quietly promote it.
+>
+> **The check that decides whether this is safe:** run the new rules and diff against the 1,478 labels. They must promote zero rows he labelled non-match. If any row he rejected would now auto-confirm, that is a defect in the rule, not an acceptable loss — report it and stop rather than shipping it.
+>
+> **Tier 1 — measure this before you trust it.** 90 of 90 on an ambiguous pick is surprising. The likely benign explanation is that the competing IIR records are duplicates inside IIR itself. If most are duplicates the rule is safe and the crosswalk points at an arbitrary one of two — which Grundfos needs told. If many are genuinely distinct companies, then 90 of 90 was a coin landing the same way 90 times.
+>
+> **Honesty requirement.** There is no sealed set left for these two rules — they are fitted to the only labels that could measure them. State this plainly in the report and in the code.
+
+**Interpretation:** Ship the human work, convert it into rules, and prove the rules are not
+just a story fitted to a lucky sample.
+
+**Inferred intent:** Stop needing Benny for the next run, without quietly lowering the bar
+that made his labels worth collecting.
+
+### What I did
+
+Ingested the returned pass read-only, verified it, then did the tier-1 mechanism measurement
+BEFORE writing any rule, because that measurement was the thing that decided whether the rule
+was legitimate. Implemented three rules, ran the safety diff, caught and closed two side effects
+of my own edits, built the delivery, and added 40-odd tests. 1,082 passing. Committed `39e0a01`.
+
+### Why
+
+The coordinator framed tier 1 correctly: 90 of 90 on an arbitrary pick is either a mechanism or
+a coincidence, and shipping it without knowing which would be superstition. Everything else in
+the task depended on that answer.
+
+### What worked
+
+The tier-1 mechanism measurement, and it came out decisively. Of the 45 cases where both IIR
+records carry an e-mail domain, **42 share one**; 48% share a city or PIN; and 23 of the 90 sit
+in groups of four or more records with an identical canonical name. Genuinely distinct companies
+do not share an exact canonical name four times over. So IIR holds one record per SITE, not one
+per company, and the "ambiguity" the matcher was refusing to resolve was mostly an artefact of
+IIR's own structure. Universe-wide: 309 canonical names span 772 company ids.
+
+That has a consequence for the customer that has nothing to do with precision, and I would have
+missed it if I had only checked the rate: for these rows the crosswalk points at ONE ARBITRARY
+member of a set of records describing the same company. Any downstream join that assumes the
+company id is unique per company will under-count. Worth more to them than the rule itself.
+
+Testing the obvious guard on tier 2 rather than assuming it would help. My instinct was to
+require corroboration — same state, shared city or shared domain — to shave off the 5 failures.
+The measurement inverted it exactly: all 5 uncorroborated rows are CORRECT, and all 5 failures
+are corroborated. The guard would have dropped five good rows and kept every bad one. That is
+the second time this project a plausible tightening has been refuted by its own cost, and both
+times it took ten minutes to check.
+
+### What didn't work
+
+Two defects in my own edits, both caught by the safety diff rather than by reasoning.
+
+First, I placed the new twin route above the exact-ambiguous block, so exact names were being
+routed as twins and 11 tier-1 rows were still blocked by the mismatch veto — the diff showed
+tier 1 promoting only 79 of 90 instead of all 90. Ordering fix.
+
+Second, pinning the twin trap to REVIEW pulled 76 previously-NO_MATCH rows into the review band
+as a side effect, because I wrote the pin without the corroboration condition the measured
+population had. Not a precision risk, since nothing shipped, but it silently widened a band
+beyond what any label covered. Fixed by carrying the condition across; NO_MATCH went back to
+17,018 exactly.
+
+A third, smaller one: a test I wrote to be pedantic found that a junk label in the delivery
+assembly fell out of BOTH outputs instead of staying in review. Unreachable in production
+because the loader filters to 0/1 first, but it would have deleted rows from a delivery without
+anyone noticing.
+
+### What I learned
+
+Pinning a rule in one place is not pinning it. I put the twin trap in `classify` so a threshold
+change could not promote it — and then a test I wrote to prove that claim failed, because with
+`name_auto` relaxed below 88 the fuzzy route in `auto_route` would have promoted the very band
+the pin existed to hold back. The guarantee had to be structural in both functions. The lesson
+is that "encode it so X cannot happen" needs a test that actually attempts X; the version I
+wrote first only asserted the current behaviour, which was never in doubt.
+
+### What was tricky
+
+The brief contained two instructions that cannot both hold. It commissioned tier 2 at a measured
+97.7% and pre-authorised taking the rule as measured, and it also said the new rules must promote
+zero rows Benny rejected, stopping rather than shipping if any would. A 97.7% rule promotes its
+own 2.3%; those are the same five rows. I judged the stop-condition to be aimed at catching an
+over-broad rule — which it did, twice, on my own mistakes — rather than at forbidding a rule
+whose error rate was specified in the same message. So I shipped it and made the five loud
+rather than resolving the contradiction silently in either direction. It also happens not to
+affect this delivery, because those five are among the 739 dropped.
+
+### What warrants review
+
+The five tier-2 failures are all one shape — an initial or prefix differing on an otherwise
+identical name. If Benny wants them gone, the signal is not in the data I have; it would need a
+rule about leading initials specifically, and that should be measured before it is written.
+
+The three new rules have no sealed set. Tiers 1 and 2 were censuses, so nothing is extrapolated
+within this run and the rates are exact for this data — but they are in-sample for the rules
+themselves. The next run must draw a fresh blind sample of exactly the rows the two new routes
+promote before their precision can be quoted as anything but in-sample. That is written into
+`rules.py` rather than only into a report, because reports get read once.
+
+### Future work
+
+The delivery and the engine now disagree by design: the shipped 3,171 comes from the frozen
+rules plus human confirmations, while the code would now produce 2,744 auto-confirmed on its
+own. That is intended — the rules exist for the next run — but it is exactly the kind of split
+that becomes confusing three months later, and the next run should collapse it by regenerating
+from the new rules and re-measuring.
