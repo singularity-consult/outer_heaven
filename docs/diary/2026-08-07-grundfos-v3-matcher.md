@@ -1082,3 +1082,123 @@ Tuning is next and must consume only the calibrate half through `load_labels`. T
 structural, but nothing stops a future caller reading the key CSV directly with pandas and
 filtering by hand; if that becomes a real pattern, the key file itself should be split into two
 files so the locked rows are not even present in the one the tuning code opens.
+
+## Step 8: Tuning on the new labels, and the sealed number
+
+**Author:** builder
+
+### Prompt Context
+
+**Verbatim prompt:** abridged to operative content. Customer names in the original are
+replaced with role descriptions in square brackets.
+
+> Labels are back. Tune the engine, then produce the two final datasets. Benny has authorised this.
+>
+> **The one statistical instruction that matters most:** the strata were deliberately over- and under-sampled, so pooling all 1,000 rows gives a biased precision. Any population-level number must be **weighted by each stratum's sampling fraction**, and you must say so wherever you report one.
+>
+> **Benny's stated principle:** PT address quality is poor — the address is frequently a local project site or a plant, not the company's registered address. Geography is therefore weak evidence *against* a match. Combined with 218/218, that says the state-mismatch veto on an exact, unique canonical name is wrong and should go.
+>
+> The residual risk sits on the IIR side: a generic name being unique *in IIR* may only mean IIR knows one of several such companies. If your design can express a distinctiveness condition that keeps [a global engineering contractor] while being honest about [a generic two-word group name], cost it and show it. If it cannot without losing most of the 218, say so and take the simple rule.
+>
+> **Do not fix labels.** Two of the five failures look like label errors rather than engine errors — [a state public-works department] and [a state irrigation department], same body with the words reordered. Do not correct them, do not exclude them, do not tune around them. Report them and let Benny rule.
+>
+> **Sequence — the lock is broken once, at the end.** Tune against the calibrate 500 only. Freeze the rules. Then unseal the locked 500, once, and measure. That number is the honest one and it is not permitted to cause further tuning. If it disappoints, report it — do not go back and adjust.
+
+**Interpretation:** Let the labels decide one large question, prove the answer on data the
+tuning never saw, and never quote a pooled number from a deliberately unbalanced sample.
+
+**Inferred intent:** Convert months of argument about geography into a measured ruling, and
+end with a precision figure that is honest rather than flattering.
+
+### What I did
+
+Ingested the returned file as read-only input — Danish Excel semicolons, a BOM, and a repeated
+header row, all handled on read rather than by editing Benny's copy. Verified before trusting
+it: every drawn id present exactly once, no unknown ids, zero name drift on either side, every
+label usable, and the four previously blank rows filled.
+
+Then tuned strictly on the calibrate half through the gated loader, tested three candidate
+changes, adopted one, froze, unsealed once, and produced the datasets. Suite 1,019 passed.
+
+### Why
+
+The sequence was the point. Tuning and measuring on the same labels produces a number that
+describes the fitting, not the engine. Splitting the labels and sealing half is the only way to
+end with a figure that means what it says.
+
+### What worked
+
+Testing each candidate refinement by its COST rather than its appeal. All three were plausible
+and two died on contact with the numbers: tightening the parent rule by requiring a shared
+token would have lost 34 measured-correct matches to catch 2 errors, and moving the fuzzy-name
+threshold was wrong in both directions — down admits a 60%/46%/20% cascade, up discards 19 true
+matches to prevent 2. Only the geography change survived, and it survived overwhelmingly.
+
+The gated loader earned itself. Every tuning read went through it and returned exactly 500 rows;
+the sealed half was opened once, deliberately, by an explicit token. Without that the temptation
+to "just check" would have been constant and unrecorded.
+
+Splitting the state-mismatch population four ways before believing it. The headline was 110/110,
+but the useful question was whether it held in the cell I most distrusted — weak-cored AND
+uncorroborated. It did: 39 for 39. That is what justified dropping the corroboration
+requirement as well as the veto, and I would not have dropped it on the headline alone.
+
+### What didn't work
+
+The distinctiveness condition the brief asked me to cost could not be built, and the reason is
+worth recording: there were ZERO negatives in the measured population to fit one against. Any
+condition I invented would have been fitted to a fear rather than to evidence, and would have
+cost recall for no measurable benefit. Requiring a non-weak core, the most obvious version,
+would have discarded 48 measured-correct pairs in the calibrate half alone to prevent zero
+measured errors. So I took the simple rule and wrote the residual risk into the module docstring
+instead of pretending to have handled it.
+
+My own parent-rule hypothesis also failed. I predicted the wrong parent matches would be the
+ones sharing no token with the group name — and they were, but so were 34 of the correct ones.
+A 94% hit rate on the "suspicious" side is not a rule, it is a coincidence with a story attached.
+
+### What I learned
+
+A stratified sample makes the obvious number the wrong one. Pooling all 1,000 rows gives 99.01%;
+weighting by each stratum's sampling fraction gives 99.67%. The gap is entirely an artefact of
+having deliberately over-sampled the populations most likely to be dirty. Both numbers are
+"true" of the sample and only one is true of the population, and the wrong one is the one that
+falls out of a naive `mean()`. I made the weighted estimator a tested function rather than a
+line in a script, precisely because the naive version is so easy to reach for.
+
+A secondary surprise: the standard error of the all-1,000 estimate is exactly zero, which looks
+like a bug and is not. Every stratum containing an error was censused, so the
+finite-population correction removes all sampling uncertainty from them, and every sampled
+stratum was perfect. Worth explaining wherever it is reported, or someone will "fix" it.
+
+### What was tricky
+
+Verifying the coordinator's label table without breaking the seal. Their table was over all
+1,000 rows, and confirming it before freezing would have meant reading the locked half — the one
+thing the sequence forbids. I verified on the calibrate half, froze, and only confirmed the full
+table after unsealing. Three of their nine counts were slightly off (199 vs 200, 218 vs 220, 107
+vs 108) though the error counts were all correct; had I "verified" early I would have learned
+nothing extra and contaminated the result.
+
+### What warrants review
+
+Two of the eight AUTO errors are almost certainly label errors, not engine errors: a state
+public-works department matched to the same department with the words reordered, and a state
+irrigation department likewise. Both score 100.0 on the name blend. I did not correct, exclude
+or tune around them, exactly as instructed — but if Benny rules them correct, the approximate-name
+route measures 96.8% rather than 96.0%, and the remaining failures are all genuine near-name
+collisions at the very bottom of the threshold.
+
+The parent route is the weakest at 97.3%, and all three failures are group-sibling cases,
+consistent with Benny's June rule that group units are distinct legal entities. It cannot be
+tightened by anything I could measure. It is a distinct claim type and a small population, so it
+is his call whether 97.3% clears the bar for a table nobody reviews.
+
+### Future work
+
+Recall is now the whole remaining problem. The rejected-candidate stratum came back 8.3% true,
+which extrapolates to roughly 1,400 true matches inside the 17,018 identities the rules discard
+— far larger than anything left in the AUTO or REVIEW bands. That population has never been
+worked on, and it is where the next iteration's value is. It also cannot be reached by threshold
+changes: the missed matches sit at name scores in the 50s and 60s, so it needs a different
+signal rather than a looser one.
