@@ -1442,3 +1442,139 @@ retrieval works; what is missing is a measured precision for it and a scoped con
 come from this file. If it lands well, it is the first rule in the project able to reach matches
 that BLOCKING misses rather than ones the decision rules reject — which is the gap that has been
 on the record since the ground-truth draw.
+
+---
+
+## Step 11: Making a settled decision survive the re-run
+
+**Author:** main + builder
+
+### Prompt Context
+
+**Verbatim prompt:** abridged to operative content.
+
+> Reviews are never revisited in production. So a decision that has been made â€” by the
+> engine or by me â€” must not be re-decided next month when the data refreshes. Build the
+> persistence. And it must not bury a firm that simply is not in IIR yet.
+
+**Interpretation:** An append-only store of decisions, consulted before matching, with the
+explicit exception that an unjudged NO_MATCH stays open.
+
+**Inferred intent:** The difference between a store and a cache. A cache remembers answers; a
+store remembers *judgements*, and only judgements are permanent.
+
+### What I did
+
+`src/decision_store/` plus a runner. The store is append-only â€” `append` raises rather than
+overwrite a row that shares its key but differs anywhere else, so a re-run cannot quietly
+overturn a settled decision. One effective decision per identity is computed at *read* time from
+a declared precedence, and every disagreement is reported rather than absorbed.
+
+Two design points worth recording. First, each decision carries the raw name, role and company
+id, not only the derived key â€” so a change in canonicalisation cannot orphan the whole store.
+That is the same failure class as the dead join key from June, approached from the other side.
+Second, what is *not* frozen matters more than what is: an identity that reached NO_MATCH and
+that nobody has judged is re-evaluated every run, because new extracts arrive monthly and
+freezing those would permanently bury a firm that merely had not appeared yet.
+
+Ran end to end: 4,799 decisions stored, and **0 new on a second run** â€” which is the proof that
+settled cases are not re-decided.
+
+### What warrants review
+
+The precedence rule for two human rounds is "the later round wins", and that is an inference,
+not a measurement. It was flagged as such in the module rather than presented as a fact. Step 12
+is where it got tested.
+
+---
+
+## Step 12: A rejection that binds the pair, not the firm
+
+**Author:** main
+
+### Prompt Context
+
+**Verbatim prompt:** abridged. Company names replaced with role descriptions in square brackets.
+
+> Freeze the rejected matches, but the individual PT firm and the individual IIR firm must
+> still be usable in other potential matches. For frozen, verified matches, the PT firm should
+> not appear again in future matching.
+>
+> [later] Put the confirmed probe labels into the combined, frozen matched dataset. After that
+> I would like to run the engine again, on the data that is not yet matched.
+
+**Interpretation:** Two different scopes that had been collapsed into one. A confirmed match
+retires the PT firm; a rejection retires only the pair.
+
+**Inferred intent:** Recover recall without weakening precision â€” the rejections were doing
+more damage than they were meant to.
+
+### What I did
+
+Three changes that only make sense together.
+
+**The probe became a decision source.** Benny had labelled the high-cost probe by hand. The file
+he labels deliberately carries names and no keys, so the keys had to be recovered by re-running
+the probe's own deterministic search. The obvious join â€” project id plus both names â€” *inflated
+1,007 rows to 1,071*, because the probe is project grain and those columns are not unique
+together. Rows were therefore aligned by position, and only after every non-label column was
+proved identical at every index. That check is the whole reason the step is trustworthy: this
+project has been bitten twice by a key that silently duplicated or dropped rows, and a third
+time would have attached his judgements to the wrong pairs. 67 new matches.
+
+**Then the finding that mattered.** `partition` treated *any* stored decision as settled.
+Measured against live data, that had retired **857 PT firms from every future run** â€” and 848 of
+them had been judged against exactly **one** candidate, so the entire rest of IIR was closed to
+them forever on the strength of a single "no". This was not introduced by the probe; it had been
+true of every rejection since the review pass. Settled now means *matched*; a rejection binds its
+own pair. Rejected pairs are suppressed from candidate generation, because without that the
+matcher takes an argmax, lands on the same rejected company again, and the identity never reaches
+its next-best candidate.
+
+The clearest case: [an electronics and solar group] had been rejected against [a sibling company
+sharing its leading word] and was therefore retired â€” while the correct counterpart, the same
+firm under its own abbreviated name, sat unreached in IIR. Under the new rule the rejection binds
+that one pair and the real match lands.
+
+**Then the honest result.** Re-running the engine over the 1,035 reopened firms produced **2**
+new auto-matches. Not 200. The reopening was correct and worth doing, but it is not where recall
+is hiding â€” which independently corroborates the standing finding that the missed matches sit at
+name scores in the 50s and 60s and need a new signal, not a threshold.
+
+Final delivery 3,256. 1,199 tests green, byte-identical on a fixed run id.
+
+### What warrants review
+
+**Six rulings widened a rule, and that should not pass quietly.** The probe contradicted the
+review pass on six pairs. Two were the same legal entity behind a spelling difference. The other
+four were a parent or sibling standing in for the entity named in PT â€” [an ammonia venture]
+against [its group holding company], [a renewables developer] against [a sibling in the same
+group], [a national ministry] against [the state-owned consultancy that executes for it], and [a
+city development authority] against [the smart-city vehicle it owns]. That runs against the June
+rule that group units are distinct legal entities.
+
+I put the objection to Benny with those examples, including that one of the counterparts is
+already the match for a *different* sibling â€” the exact collision the June rule exists to
+prevent. He ruled all six a match, consistent with his earlier ruling that the PT field names a
+project sponsor rather than a legal party. The decision is his and it is recorded as fixed data,
+with the objection on the record beside it. The line that must hold: **no rule may be fitted to
+those six.** They change what is stored, not what the engine infers.
+
+**The fallback rule now has a record.** "The later human round wins" was wrong 3 times out of 4
+in the first sitting and right 6 out of 6 in the second. Ten cases, seven correct â€” messier than
+either sitting alone suggested. The mechanism is not recency but how well-informed the round was:
+a throughput rescue pass lost to a blind randomised instrument, and then lost again to a wide
+search where both sides' full addresses were visible. The fallback was **not** changed. Ten cases
+cannot support a rule, and inventing one is precisely what rulings exist to avoid.
+
+### Future work
+
+The new signal. Both the reopening and the threshold sweep have now failed to reach the ~1,400
+estimated matches sitting below name score 70, from opposite directions. That is a strong,
+twice-confirmed negative result, and it means the next attempt should not be another scoring
+change. What is left untried is corroboration from a field the matcher does not yet read.
+
+A ceiling should also be stated plainly to the customer rather than pursued: public-sector
+sponsors â€” metro, railway, irrigation and ministry bodies â€” are genuinely absent from IIR, which
+is an industrial-plant register. 226 probe rows returned no candidate anywhere in the 910k global
+file. No matching improvement can reach them.
