@@ -672,3 +672,380 @@ hvilket er præcis det der skete her.
 Step 1's og Step 2's åbne spørgsmål — om nøgleprojektionen i notebooken og normaliseringen i
 beslutningsmodulet burde være én funktion — er blevet mere relevant, ikke mindre. Der er nu
 tre steder der får to sider af en join til at tale samme sprog.
+
+## Step 4: Kunden accepterede rettelsen og afviste beviset — så blev antagelserne målt
+
+**Author:** builder
+
+### Prompt Context
+
+**Verbatim prompt:** "Byg en engangs-måle-notebook. Baggrunden er, at [kunden] har
+accepteret den rettelse du lavede, men ikke beviset bag den — og han har ret. Hele
+bredde-forklaringen hviler på to målinger, og kollisionsrisikoen blev afvist ud fra to
+stikprøver. Nu skal nøgleforholdene måles for begge spor, ikke sluttes. […] **Det
+vigtigste krav — læs det to gange. Notebooken skal måle gennem den rigtige kodes egne
+funktioner, ikke gennem sine egne.** Den findes for at efterprøve antagelserne bag
+[beslutningsmodulet]; måler den med en hjemmestrikket kopi, måler den noget andet end
+jobbet gør, og så er den værdiløs. Det er nøjagtig den drift der har kostet os to hændelser
+på en uge. Konkret, genbrug frem for at genskrive: [spor-klassifikationen],
+[nøglenormaliseringen] — 'hvis kollisionsmålingen skal svare på *kan den symmetriske
+normalisering oversletthe*, SKAL den bruge det udtryk normaliseringen faktisk bruger' —
+[nøglesnapshot'et], [tabelnavnet], [DELETE-sættets filtre]. 'Er en funktion ikke
+importérbar fra en notebook uden at trække dbutils/config med, så sig det i rapporten frem
+for at kopiere den stiltiende.' […] **Den er READ-ONLY.** […] Importér ikke [skrivemodulet].
+Skriv det i headeren som et løfte, og gør det sandt. […] **Driver-sikkerhed — dette væltede
+[kundens] driver sidst.** […] Skriv én række ad gangen, append, efterhånden som hver tabel
+måles. Akkumulér ikke [N] resultater i en Python-liste og skriv til sidst — et nedbrud på
+tabel [n] skal ikke koste de [n-1] målinger. […] **[tabel] er afklaret — skriv afgørelsen
+ind.**" Efterfulgt midtvejs af en course correction der trak den sidste del tilbage: "STOP
+med [tabel]-afsnittet — afgørelsen er trukket tilbage. […] Jeg gav dig tallene […] som
+bevis for at de [X mio.] var ægte. **Det bevis holder ikke, og du skal ikke skrive det
+ind.**" — med en ny specifikation i stedet: friskhed skulle være en del af målingen, fordi
+nøglesnapshot'et på en CDC-tabel er et levn fra før udtrækket holdt op med at dække dem.
+
+**Interpretation:** Byg et måleinstrument, ikke en ny implementation. Hver eneste
+måling skal gå gennem den funktion produktionen selv kalder, og hvor det ikke kan lade sig
+gøre, skal det siges højt frem for at blive løst med en kopi. Læs-kun, og bevisligt læs-kun.
+Og efter course correctionen: et snapshot er ikke et bevis bare fordi det ligger der — dets
+alder er en del af målingen, ikke en fodnote.
+
+**Inferred intent:** Kunden har accepteret rettelsen og afvist argumentet bag den, og det er
+den sunde reaktion. To af de tre påstande i dokumentationen hvilede på to aflæsninger hver,
+og den ene side af hele sammenligningen var aldrig målt. Det var præcis en umålt antagelse
+— "de ti er numeriske" — der brækkede ti tabeller i Step 3. Opgaven er derfor ikke at
+producere tal; det er at gøre det umuligt for den næste konklusion at hvile på et
+stikprøve-argument.
+
+### What I did
+
+Byggede en engangs-notebook ved siden af jobbet, og lagde dens rene dele i det samme
+beslutningsmodul som resten: hvad der kan måles for en given nøgletype, hvad et par af
+distinkte tællinger betyder, hvordan en kørsel opsummeres, og om et nøglesnapshot
+overhovedet er et bevis.
+
+**Genbrugskravet tvang to rigtige beslutninger frem, og de er ikke kosmetiske.**
+Nøgleprojektionen lå i produktions-notebooken og kunne derfor ikke importeres. Den bruger
+kun pyspark og modulets egne hjælpere — ingen dbutils, ingen config — så den hørte hjemme i
+modulet i forvejen, ved siden af de to andre DataFrame-transformationer der allerede bor
+der. Jeg flyttede den frem for at kopiere den, og produktions-notebooken kalder den nu
+samme sted. Det er nøjagtig det åbne spørgsmål Step 1, Step 2 og Step 3 hver især skrev ned
+som "burde måske være én funktion"; her tvang en ny forbruger svaret frem. Samme greb for
+flag-opslaget: forespørgselsteksten og række→dict-trinnet ligger nu i modulet, mens selve
+forbindelsen bliver i hver notebook, fordi den kræver hemmeligheder.
+
+**Tre hjælpere kunne ikke flyttes, og det står skrevet frem for løst.** Tabelnavn-byggeren
+kræver katalog-config og en navnesaniterer; snapshot-mappe-indpakningen kræver
+filsystem-API'et; fil-listningen er én linje over samme API. De er gentaget i
+måle-notebooken, hver med en henvisning tilbage til originalen og en linje om hvorfor. Det
+var oplæggets egen undtagelse, og jeg brugte den frem for at flytte config ind i et modul
+hvis hele pointe er at være fri for det.
+
+**Målingen af *begge* sider blev løst ved at kalde den samme funktion to gange.**
+Slettesættet bygges af en funktion der bærer alle fire entitetsfiltre; kaldt med måltabellens
+egen nøgletype giver den præcis de nøgler guarden tæller. Kaldt med `"string"` som nøgletype
+tvinges kontroltabel-siden ned ad sin strenggren, som er en ren trimning og ingenting andet
+— så en længdemåling på den kolonne *er* længden af den trimmede nøgle, taget gennem
+produktionens eget udtryk, uden at et eneste filter er stavet om. Forskellen mellem de to
+tællinger er i sig selv en måling: den siger hvor mange trimmede værdier castet folder
+sammen, altså kollisionsspørgsmålet stillet til den anden side.
+
+**Kollisionsmålingen bruger produktionens join-udtryk, ikke et TRIM.** Den tager
+`count(distinct <gemt>)` mod `count(distinct <normaliseret>)`, hvor det normaliserede er
+det udtryk joinen faktisk bygger. På en strengnøgle er det en trimning; på en numerisk er
+det identiteten, så de to tællinger *skal* komme ud ens — og Catalyst folder de to
+identiske aggregeringer sammen, så det koster ingenting at lade målingen sige det frem for
+at læseren skal tro på det. Eksakt tælling, aldrig approksimeret: spørgsmålet er om to
+nøgler kollapser til én, og et estimat kan ikke svare på det.
+
+**Course correctionen midtvejs ændrede specifikationen reelt.** Nøglesnapshot'et på en
+CDC-tabel er et levn: det daglige nøgleudtræk kører med et filter der udelader netop de
+tabeller, så det der ligger i mappen stammer fra før den udeladelse. En løs fil i roden,
+ingen dateret mappe, ingen udtræksdato. Og fejlen løber den farlige vej — et gammelt
+snapshot har færre nøgler end kilden har i dag, så de rækker det ikke kan gøre rede for
+kommer ud for *højt*: filens alder læst som sletninger. Notebooken måler derfor alderen før
+den sammenligner noget, og lader tællingerne stå tomme for alt andet end en dateret mappe
+inden for én udtrækscyklus plus tolv timer. Grænsen er begrundet i koden ud fra triggerens
+egen plan, ikke valgt efter smag.
+
+**Driver-sikkerheden er bygget efter den hændelse der væltede driveren sidst.** Seriel
+kørsel, én række skrevet og committet ad gangen, per-tabel `try/except` der lægger fejlen i
+rækken og fejler hele kørslen til sidst, portionering via det samme where-clause-widget
+jobbet bruger, og et kørsels-id der gør gentagelse sikker. Alt er aggregeringer — ingen
+`collect()` af et nøglesæt, ingen `toPandas()`.
+
+Testsuiten gik fra 126 til 176 rene tests. Notebooken parser (`python -m py_compile`), og
+skrivemodulet er ikke importeret.
+
+### Why
+
+Fordi en måling bygget på en anden implementation måler den anden implementation, og det er
+præcis den drift der har kostet to hændelser på en uge. Step 3's fejl var ikke en
+tastefejl; den var at en konklusion blev draget om ti tabeller ud fra observationer på de
+nitten andre. En notebook der gentog beslutningslogikken ville kunne producere grønt for en
+kode der var rød, hvilket er den værste af alle mulige udfald: en bekræftelse af en
+antagelse, målt på noget andet end det antagelsen handler om.
+
+Og fordi alderen på et snapshot er en del af målingen og ikke en omstændighed ved den.
+Fravær af bevis må ikke kunne bære formen af et bevis.
+
+### What worked
+
+**Genbrugskravet var en designkraft og ikke en begrænsning.** Fordi målingen *skulle* gå
+gennem de samme funktioner, blev det umuligt at feje "hvorfor ligger den her og ikke der"
+ind under gulvtæppet. Flytningen af nøgleprojektionen er en forbedring af produktionskoden
+som ingen af de tre foregående steps fik gennemført, og den kom ikke af en oprydning — den
+kom af at en anden forbruger havde brug for den.
+
+**At kalde den samme funktion med en anden nøgletype i stedet for at gentage dens filtre.**
+Det er det enkleste greb i hele leverancen og det der bærer mest: den side af
+sammenligningen der aldrig er blevet målt, måles nu gennem produktionens eget udtryk, og
+der findes ikke et sted hvor filtrene kan glide fra hinanden.
+
+**Kollisionsmålingen på en numerisk nøgle er en tautologi, og det er rigtigt.** Fristelsen
+var at springe den over med et argument ("en numerisk kolonne kan ikke bære udfyldning").
+At lade den køre gennem det rigtige udtryk gør argumentet til en observation uden at koste
+noget, fordi de to aggregeringer er det samme udtryk og foldes sammen.
+
+### What didn't work
+
+**En test hævdede den rigtige ting gennem den forkerte funktion.** Jeg skrev en test der
+skulle vise at en ukendt nøgletype rapporteres frem for at fejle, og lod den først bevise at
+den underliggende regel *gør* fejle — men jeg kaldte Spark-udtryks-funktionen til det. Den
+importerer pyspark i funktionskroppen, før den når frem til typetjekket:
+
+```
+python -m pytest --noconftest [testfil] -q
+E       ModuleNotFoundError: No module named 'pyspark'
+[beslutningsmodul]:981: ModuleNotFoundError
+3 failed, 160 passed in 0.26s
+```
+
+Rettelsen var at hævde det mod typefamilie-funktionen direkte, som er ren. Den lille
+episode er selv en observation værd: et modul der er "pyspark-frit" er det ikke hele vejen
+ned, og importen ligger før den logik man tror man tester.
+
+**Jeg byggede en gentagelses-sikkerhed der ville have gjort det modsatte af sit formål.**
+Kørsels-id'et springer tabeller over der allerede er målt. Men en tabel der *fejlede* får
+også en række under samme id — så den ville være blevet sprunget over på netop den kørsel
+der fandtes for at måle den. Fundet i min egen gennemgang af diff'en, ikke af en test.
+Rettelsen skelner nu mellem "målt rent" og "fejlede", og læse-forespørgslen bruger `QUALIFY`
+så det seneste forsøg pr. kolonne vinder.
+
+**Jeg korrigerede oplægget på ét punkt.** Course correctionen sagde at mappe-resolveren
+returnerer `None` for den løse legacy-fil. Det gør den ikke — med filer men ingen daterede
+undermapper falder den igennem til `return root_path`, så filen læses som om den *var* en
+snapshot-mappe. Det er værre end den beskrevne adfærd og gør pointen stærkere, ikke
+svagere. Formen afgøres derfor ved at sammenligne stier, ikke ved et `None`-tjek, og der er
+nu en test der kalder resolveren selv med en løs fil og hævder at den giver roden tilbage —
+så præmissen under formtjekket er hævdet frem for læst ud af kildekoden.
+
+### What I learned
+
+**Et snapshot er ikke et bevis fordi det ligger der.** Det er den egentlige lærdom fra
+course correctionen, og den er almen: når et udtræk holder op med at dække en tabel,
+forsvinder dataene ikke — de bliver stående og ser nøjagtig ud som data der stadig
+vedligeholdes. Forskellen ligger i *formen* (dateret mappe mod løs fil) og i *alderen*, og
+ingen af delene aflæses medmindre nogen beslutter at aflæse dem. En kontrol der læser
+"nyeste mappe" læser det ældste den kan finde, den dag der ikke bliver skrevet flere.
+
+**Fejlretningen løber den ene vej, og det afgør om et tal er farligt.** Et gammelt snapshot
+gør hullet større, aldrig mindre. Derfor er "der mangler flere nøgler end forventet" den
+retning man *ikke* må læse som et fund — og det er præcis den retning tallet pegede da det
+blev fremlagt som bevis. Et tal hvis fejlretning peger mod den konklusion man gerne vil
+drage, skal måles igen, ikke bruges.
+
+**En kollisionsmåling der ikke bruger join-udtrykket er en anden måling.** Man kan skrive et
+`TRIM` der giver det rigtige svar i dag og det forkerte i morgen, fordi normaliseringen
+ændrede sig ét sted. Det lyder pedantisk, lige indtil man husker at hele Step 3 var to
+udtryk der holdt op med at betyde det samme.
+
+### What was tricky
+
+**Hvad der er "gentagelse" og hvad der er "genbrug" er ikke et spørgsmål om linjeantal.**
+Tre linjer der bygger et tabelnavn er en gentagelse der må accepteres; tredive linjer der
+åbner en databaseforbindelse er det også — men *forespørgselsteksten* inde i dem er det
+ikke, for det er den der afgør hvilke flag beslutningen træffes på. Skillelinjen går ved om
+stykket bærer en beslutning, ikke ved om det er langt.
+
+**Tabel-niveau mod kolonne-niveau i resultatrækken.** Rækken er pr. (tabel, nøglekolonne),
+men snapshot- og kontroltabel-målingerne er pr. tabel. På en sammensat nøgle gentages de
+derfor på hver af tabellens rækker, og der er ingen elegant udvej: at lægge dem på den
+første kolonne alene gør rækken uforståelig alene, at udelade dem gør dem usynlige. Valget
+står skrevet i kolonnens kommentar og i headeren — "læg dem ikke sammen" — hvilket er en
+dokumenteret skarp kant frem for en skjult.
+
+**At holde en læs-kun-erklæring sand ned i detaljen.** Headeren lovede først "ingen
+Delta-commit uden for resultattabellen", og det var ikke helt sandt: skemaoprettelsen er
+også en commit. Formuleringen blev rettet til at nævne de tre steder der skrives, ved navn.
+En upræcis garanti er værre end ingen, fordi den bliver citeret.
+
+### What warrants review
+
+Notebooken kan ikke køres herfra. Den kræver Databricks; maskinen har hverken Java eller
+pyspark, og jeg har ikke installeret nogen af delene. Jeg påstår ikke at den er verificeret.
+Det jeg kan stå inde for er at den parser, at de rene tests er grønne, og at skrivemodulet
+ikke er importeret.
+
+Grænsen for hvornår et snapshot er for gammelt er et valg. Den er begrundet ud fra hvor ofte
+udtrækket kører, og den er testet mod begge sider af sin egen begrundelse — men den er ikke
+målt mod virkeligheden, fordi det kræver at man ser hvor gamle snapshots faktisk er.
+
+Den eksakte distinkte tælling på de største tabeller er den dyre del. Den er aldrig kørt, og
+portioneringen i runbooken er en forsigtighedsforanstaltning bygget på erfaringen fra
+nedbruddet, ikke på en måling af denne notebooks egen pris.
+
+Og den ærlige gentagelse fra Step 3: spejlingen mellem den rene regel og de to Spark-udtryk
+bevises stadig kun af tests der kræver cluster. Måle-notebooken hjælper på noget andet — den
+måler dataene, ikke spejlingen — så det hul står uændret åbent.
+
+### Future work
+
+Kørslen skal faktisk foretages, og resultatet skal tilbage i dokumentationen som tal frem
+for som argument. Indtil det sker, er dette et instrument og ikke et svar.
+
+Formtjekket på snapshot-mapper hører logisk til i selve resolveren frem for ved siden af
+den: en resolver der returnerer roden når der ikke er daterede mapper, fortæller ikke
+kalderen at den gjorde det. At lade den sige det — frem for at lade hver kalder udlede det
+af en sti-sammenligning — ville lukke fælden ét sted i stedet for n.
+
+## Step 5: En kontrol der strukturelt ikke kan bestå, må ikke stilles
+
+**Author:** builder
+
+### Prompt Context
+
+**Verbatim prompt:** "**[Kunden] har besluttet at `max_length` ikke skal bedes om på
+LOB-kolonner i [led 1].** Baggrund, som er **lukket og ikke skal undersøges, rettes eller
+nævnes igen**: [led 1] målte at en LOB-kolonne afkortes ved udtrækket. **[Kunden] har
+bekræftet at afkortningen er den ønskede adfærd.** Sagen er afsluttet. Konsekvensen skal
+derimod håndteres: er afkortningen permanent og tilsigtet, vil `max_length` afvige på hver
+eneste LOB-kolonne ved hver eneste kørsel. En kontrol der råber ulv hver gang, lærer man at
+ignorere — samme mekanisme som tærskel-kommentaren i [beslutningsmodulet] allerede advarer
+imod. […] Teksten skal sige **hvorfor**, præcist. Ikke 'for dyr', ikke 'giver ikke mening'.
+Den rigtige grund: afkortning ved udtrækket er en kendt og accepteret tilstand, så en
+længdesammenligning mellem [kilden] og [landingslaget] **kan ikke være ens** og er derfor
+ikke et bevis. En kontrol der strukturelt ikke kan bestå, må ikke stilles. **Afgør samtidig
+om `max_octet_length` på LOB skal falde med.** […] Undersøg det i koden, vælg, og begrund
+valget — begge veje er forsvarlige, men valget skal stå skrevet. […] I køre-instruktionen:
+skriv hvad [kunden] skal se for at vide at **LOB-kolonnerne nu udelades rent i stedet for
+at fejle**."
+
+**Interpretation:** Fjern en kontrol, men gør fjernelsen til noget der kan læses og
+efterprøves: kolonnen skal stå som eksplicit udeladt med sin grund, ikke forsvinde. Og træf
+et åbent valg på den tilstødende diagnostik, med argumentet skrevet ned frem for
+konklusionen alene.
+
+**Inferred intent:** Det farlige er ikke den kontrol der mangler; det er den kontrol der
+altid er rød. Den lærer læseren at rødt er normalt, og så er hele leddet uvirksomt næste
+gang noget faktisk går galt. Det er samme mekanisme som tærskel-noten i delete-detektionen
+advarer imod fra den anden ende af estatet, og pointen i at få dem til at referere til
+hinanden er at det er én lærdom og ikke to.
+
+### What I did
+
+Læste den funktion der afgør hvilke aggregeringer en kolonne får, og fandt at LOB-typen
+fordeler sig over to grene: den ene er medlem af *både* tegn-typerne og LOB-typerne, den
+anden kun af LOB-typerne. Derfor blev LOB-grenen lagt **først**, og det er et krav og ikke
+en stilistisk præference: en test af tegn-grenen først ville sende hver eneste af den
+dobbeltmedlem-type ned ad den, og afvisningen ville kun nogensinde fyre for den anden.
+Rækkefølgen er reglen — samme greb som spor-valget i delete-detektionen bruger, hvor "kun
+dette spor" er udtrykt som en position frem for som en betingelse. Der er en test der
+hævder begge medlemskaber og derefter at LOB-grenen vinder.
+
+Begge LOB-typer afvises nu med samme begrundelse. Den ene af dem havde tidligere en
+sammenligning med argumentet "bytes på begge sider, altså utvetydig" — det argument handlede
+om *enheder*, mens afkortningen handler om *værdier*, så det holdt ikke som grund til at
+behandle de to forskelligt.
+
+**Valget på den tilstødende diagnostik: den falder med.** Den måles kun på landingssiden og
+findes udelukkende for at kunne navngive en byte-mod-tegn-afvigelse i længdesammenligningen.
+Uden den sammenligning har den intet at forklare. Og det afgørende argument er ikke pris —
+den er gratis — men hvad den *skriver*: en ensidet måling skrives ud med dommen `ok`, og en
+`ok`-række på en LOB-kolonne hvis længde ingen har sammenlignet, læses som en LOB-kolonne
+der bestod. Det er nøjagtig den falske tryghed ændringen findes for at fjerne. Den afvises
+derfor eksplicit frem for at blive droppet i stilhed.
+
+LOB-kolonnen bliver i scope selv om hvert eneste af dens aggregeringer nu er en afvisning.
+Fjernedes den, ville den forsvinde helt ud af resultattabellen — og en kolonne der bare er
+fraværende kan ikke skelnes fra en kolonne ingen har tænkt over. "Denne kolonne måles ikke,
+og her er hvorfor" skal være noget tabellen kan *spørges om*.
+
+Kørende notebook er ikke rørt: den skriver allerede en afvist aggregering ud som `skipped`
+med begrundelsen. Runbooken fik et afsnit med beslutningen, begrundelsen og en tabel over
+hvad man skal se i resultattabellen — og hvad hver af de fire forkerte udfald betyder.
+
+To tests der hævdede det modsatte er vendt om, med samme begrundelse skrevet ind i dem.
+Suiten gik fra 393 til 394.
+
+### Why
+
+Fordi en kontrol der ikke kan bestå ikke er en kontrol. Den producerer et rødt felt hver
+gang, og efter tredje gang holder folk op med at kigge på leddet — og så er det ikke kun den
+ene kontrol der er død, det er hele leddets troværdighed. Det er samme mekanisme som
+tærskel-noten i delete-detektionen beskriver fra den anden retning: en guard der fyrer på
+almindelig drift er en guard folk lærer at klikke forbi, og så er den værre end ingen guard.
+
+### What worked
+
+**At skrive grunden som "kan ikke være ens" frem for "er for dyr".** De to fører til samme
+kode og til vidt forskellige fremtider. "For dyr" inviterer til at nogen senere finder en
+billigere måde og sætter kontrollen tilbage; "kan ikke være ens" lukker spørgsmålet, fordi
+det siger noget om sammenligningen og ikke om regnskabet.
+
+**Krydshenvisningen mellem de to ender af estatet.** Begrundelsen peger på tærskel-noten i
+delete-detektionens beslutningsmodul, og den note advarer allerede mod samme fejl fra sin
+egen retning. At lade de to referere til hinanden gør det til én lærdom med to
+forekomster frem for to lokale betragtninger.
+
+### What didn't work
+
+Ingen fejlende kommandoer i dette step. Men min egen gennemgang af diff'en fandt to steder
+hvor begrundelser var blevet forældede af ændringen uden at fejle nogen test:
+
+Afvisningen af den distinkte tælling på LOB sagde "længdemålingen svarer allerede på det
+spørgsmål LOB-kolonnerne er her for" — og det gør den ikke længere, for længdemålingen
+stilles ikke. Teksten er rettet til at bære den nye grund. Kommentaren over samme blok havde
+samme slagside.
+
+Det er den slags fejl testene ikke kan fange, fordi de er sande sætninger der er holdt op
+med at være sande. Den eneste kontrol er at læse sin egen diff efter en begrundelse man har
+flyttet grunden væk under.
+
+### What I learned
+
+**Når en kontrol fjernes, er kolonnen i resultatet vigtigere end kontrollen var.** En
+kolonne der er væk, og en kolonne der ingen har tænkt på, ser ens ud i en resultattabel. En
+eksplicit afvisning med en begrundelse er derfor ikke en høflighed — det er den eneste måde
+en senere læser kan skelne "vi besluttede ikke at måle dette" fra "det blev aldrig
+overvejet".
+
+**En ensidet måling med dommen `ok` er en påstand.** Den var bygget som en neutral
+diagnostik, men dommen den bærer er ikke neutral når den står ved siden af en kolonne hvor
+alt andet er afvist. Det var ikke synligt før den kolonne den skulle forklare forsvandt.
+
+### What was tricky
+
+At finde ud af at den ene LOB-type er medlem af to typelister samtidig. Det er en detalje i
+to konstanter tretten hundrede linjer fra den gren der bruger dem, og den afgør hele
+ændringens virkning: læg grenene i den forkerte rækkefølge, og afvisningen fyrer for den
+ene af typerne og aldrig for den anden — tavst, og med grønne tests, fordi ingen test
+hævdede rækkefølgen. Nu gør en det.
+
+### What warrants review
+
+Ingen del af dette er kørt mod kildesystemet. Det der er verificeret er at de rene tests er
+grønne, at begge notebooks stadig parser, og at linteren er tilfreds med de to rørte filer.
+At LOB-kolonnerne faktisk dukker op som `skipped` med begrundelse kan kun ses ved at køre
+leddet, og runbook-afsnittet er skrevet som en aflæsningsvejledning til netop den kørsel.
+
+Den genererede forespørgsel mod kildesystemet bliver kortere — for en tabel hvis eneste
+kolonner i leddets scope er LOB'er, er den nu kun rækketallet. Det er den rigtige retning,
+men det er også en ændring i hvad der faktisk bliver spurgt om, og det bør ses én gang
+frem for antages.
+
+### Future work
+
+Afkortningen ved udtrækket er en accepteret tilstand, men den er ikke *dokumenteret som en
+grænse nogen steder uden for denne begrundelse*. Hvis nogen senere spørger "hvor meget
+afkortes der", er svaret i dag en sætning i en afvisningsgrund. Det kunne bære at stå som
+en målt værdi ét sted, netop fordi kontrollen der ville have vist det nu er fjernet.
