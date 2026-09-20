@@ -426,3 +426,249 @@ En mindre, mere konkret: sentinel-værdien for "kan ikke blive måltypen" kan i 
 tælles af den rene funktions kaldere, og Spark-siden har ingen kalder. Skal den tælles i
 drift, kræver det en aggregering på Spark-siden der tæller NULL efter castet — billigt, men
 ikke bygget, og ikke nødvendigt for denne rettelse.
+
+## Step 3: Regressionen jeg selv indførte — ensidet normalisering, ti tabeller brækket i produktion
+
+**Author:** outer_heaven:builder
+
+### Prompt Context
+
+**Verbatim prompt:** "Du skal rette en regression som du selv indførte i går, og som er
+deployet og har brækket ti tabeller i nat. Læs hele briefen før du rører noget. Designet er
+afgjort; byg det, men sig højlydt fra hvis noget viser sig forkert når du rammer koden. […]
+Den natlige kørsel [dato] fejlede med guard D på ti tabeller: `[kontroltabellens] delete keys match
+no row in the raw target at all (key normalisation)` — [ti tabelnavne]. Det er præcis de ti
+der **virkede** med den gamle kode. **Præmissen 'de ti er numeriske, castet trimmer som
+bivirkning' var forkert.** Målt i dev: […] `[nøglekolonnen]` er en **streng på 32 tegn**:
+26 cifre plus seks blanktegn. Ikke numerisk. Den rigtige skillelinje er **bredde, ikke
+type**. […] De matchede fordi begge sider var udfyldt til **samme bredde** — et sammenfald,
+ikke en korrekthed. […] Din ensidede trim fjernede udfyldningen på den ene side og ødelagde
+netop de par, der passede ved sammenfaldet. […] **Dit `soft_delete`-argument var rigtigt om
+outputtet og forkert om sammenligningen.** Outputtet skal være raws egen gemte værdi — det
+står fast […]. Men **sammenligningen** skal normalisere begge sider. […] **Paritet med
+produktion er ikke målet — den gamle har samme fejl.** […] **1f. Ny risiko du selv skal
+analysere og svare på i rapporten.** Tosidet trim kan kollapse to raw-nøgler der kun
+adskiller sig ved efterstillede blanktegn […] Er det ikke [gratis], så **byg det ikke** […]
+**Del 2 — Testen der skulle have fanget det.** 121 tests var grønne mens regressionen gik i
+produktion. De to Spark-tests, der ville have fanget den, blev aldrig kørt. Konklusionen er
+ikke 'kør Spark-testene' — det er at **sandheden skal testes uden cluster.** […] **Bevis at
+de fanger det:** kør dem mod nuværende HEAD og vis at bredde-32-testen fejler, før du
+retter. […] **Del 3 — Guard D.** Guard D bliver. Den gjorde sit arbejde […] **Del 4 —
+Runbook.** […] Afsnittet forklarer fejlen som 'streng mod tal'. **Det er forkert** […]"
+
+**Interpretation:** Ret min egen regression, og ret den på den rigtige årsag frem for på
+symptomet. Behold det halve af mit tidligere argument der holdt (outputtet), og kasser det
+halve der ikke gjorde (sammenligningen). Byg ikke et natligt scan for en risiko der ikke
+kan måles billigt — dokumentér den i stedet. Og flyt sandheden ned i tests der kan køres
+uden cluster.
+
+**Inferred intent:** Skaden er ikke de ti tabeller; de er reversible. Skaden er at jeg
+leverede en rettelse med grønt testlys på en præmis om datatyper jeg aldrig målte, og at
+jeg kun verificerede den halvdel jeg havde ændret. Opgaven er at gøre den fejlklasse svær
+at gentage — strukturelt, ikke ved at love at være mere omhyggelig.
+
+### What I did
+
+Læste briefen færdig før jeg rørte noget, og begyndte med at genskabe den gamle kode i en
+skrabet mappe uden for repoet (`git show <HEAD-sha>:<sti> > <scratch>/<sti>`) så jeg kunne
+køre tests mod før-tilstanden uden at røre arbejdskopien. Baseline bekræftet: 121 beståede.
+
+**Rettelsen.** Den rene funktion er ikke længere nøglekolonne-specifik. Den hedder nu noget
+der siger hvad den gør — reducér *en nøgleværdi fra hvilken som helst af de to sider* til
+dens sammenligningsform — og reglen er typebevidst: er raws nøgle en streng, trimmes begge
+sider; er den numerisk, trimmes og castes kontroltabellens side mens raw-siden er identitet,
+fordi en numerisk kolonne ikke kan bære udfyldning. Typeklassificeringen er trukket ud i én
+hjælper, fordi den rene funktion og de to Spark-udtryk skal være enige om hvad "en
+strengnøgle" er.
+
+Spark-siden blev til to navngivne udtryksbyggere, én pr. side. Slettesættet leveres nu på
+en normaliseret join-nøgle med sit eget kolonnenavn i stedet for at blive aliasset til raws
+nøglenavn, og nøglesæt-transformen joiner raw på det samme udtryk og **selecter raws egen
+urørte kolonne ud**. Både anti-joinen og reinstatement-joinen er skrevet om.
+
+**Følgefejlen jeg missede sidst, og som leaden fandt.** Guard D's dyre tælling i notebooken
+joinede slettesættet mod måltabellen på raws nøglekolonner. Da slettesættets nøgle blev
+normaliseret, skulle den join med — ellers ville guard D afvise falsk på præcis den
+mismatch den findes for at opdage. Den er rettet. Jeg gennemgik alle forbrugere af
+slettesæt-funktionen; der er to, og begge er i filer jeg rørte.
+
+Ét greb er mit eget: jeg **fjernede** nøglekolonne-parameteren fra slettesæt-funktionen i
+stedet for at lade den stå ubrugt. Dermed fejler en forbruger skrevet mod den gamle kontrakt
+på selve kaldet, og en forbruger der joiner uden at normalisere raw fejler på en manglende
+kolonne — i stedet for tavst at matche nul, som er hele fejlformen.
+
+**Kollisionsrisikoen (1f): analyseret, ikke bygget.** Tosidet trim kan folde to raw-nøgler
+sammen hvis de kun adskiller sig ved blanktegn i enderne. På en kolonne med fast bredde kan
+det ikke ske — er hver værdi udfyldt til samme bredde, medfører `trim(a) = trim(b)` at
+`a = b` — og målingen siger at begge grupper er fast bredde. Jeg byggede intet natligt scan,
+og begrundede det to steder: målingen kræver to fulde aggregeringer over hele måltabellen,
+så den er ikke gratis inden for guard D's `limit(1)`-arbejde; og guard D betaler kun for sin
+dyre gren når slettesættet flager nul, hvilket er netop det tilfælde hvor en kollision ikke
+kunne have gjort skade. En kollisionskontrol hængt på guard D ville køre dér hvor den ikke
+kan hjælpe og mangle dér hvor den kunne. Den håndkørte forespørgsel står i koden og i
+runbooken.
+
+**Tests og runbook.** De rene tests dækker nu begge bredder og er formuleret som "de to
+sider lander på samme værdi", ikke som "funktionen returnerer X". Spark-testene fik bredde
+32 med, inklusive en påstand om at den overlevende nøgle kommer tilbage i raws **udfyldte**
+form. Runbook-afsnittet er skrevet om fra "streng mod tal" til bredde-forklaringen, med
+hændelsen og en prøvekørsel der dækker begge grupper.
+
+### Why
+
+Det centrale i briefen er skelnen mellem *sammenligningen* og *outputtet*, og den er grunden
+til at mit oprindelige argument både var rigtigt og forkert. Skrivefunktionen anti-joiner
+mod måltabellen selv, så nøglesættet skal bære raws gemte værdier — dér holdt argumentet.
+Men deraf følger ikke at *sammenligningen* skal ske på de gemte former. Nøglesættet bygges
+ud af raw i forvejen, så man kan joine på et normaliseret udtryk og lade den urørte kolonne
+være den der kommer ud. Det er to forskellige kolonner i samme frame, og jeg foldede dem
+sammen til én beslutning.
+
+Prøvekørslen skal dække begge bredder af samme grund som testene skal: det var den manglende
+modprøve der lod regressionen slippe igennem. Én grøn gruppe beviser ingenting om den anden.
+
+### What worked
+
+At køre de nye tests mod den **gamle** kode i en udtrukket kopi frem for at antage at de
+fanger noget — samme greb som i Step 2, og det er efterhånden det eneste jeg stoler på.
+Opsætningen er tre linjer `git show` ind i en scratch-mappe med samme mappedybde, fordi
+testfilen finder modulet relativt til sin egen placering.
+
+At bygge en selvstændig reproduktion af den faktiske sammenligning frem for at nøjes med
+pytest-udfaldet. Den viser fejlen i tal i stedet for i en stacktrace:
+
+```
+group            raw side (HEAD: identity)            ref side (HEAD: trim+cast)     match
+width 16 group   '<16-tegns nøgle>'                   '<16-tegns nøgle>'             YES
+width 32 group   '<26 cifre + 6 blanktegn>'           '<26 cifre>'                   NO  <-- delete set reaches nothing
+```
+
+Den tabel er hele regressionen på to linjer, og den viser samtidig hvorfor bredde-16-gruppen
+blev repareret i samme greb som bredde-32-gruppen blev brækket.
+
+### What didn't work
+
+**Det vigtigste først: jeg leverede en rettelse der var grøn på 121 tests og brækkede ti
+tabeller i produktion, fordi præmissen om datatyperne var forkert og jeg kun verificerede
+den halvdel jeg havde ændret.**
+
+Jeg så at ti objekter fandt sletninger og nitten fandt nul, og jeg konkluderede at de ti var
+numeriske og at castet trimmede som bivirkning. Det var en forklaring der passede på
+udfaldet, og jeg målte den aldrig. Ét opslag på nøglekolonnens længde i dev ville have
+afgjort det:
+
+```sql
+SELECT <nøgle>, LENGTH(<nøgle>) FROM <måltabel> WHERE <aktuel-række-filter> LIMIT 5;
+-- 26 cifre + 6 blanktegn, LENGTH = 32, dtype string
+```
+
+Kolonnen er en **streng på 32 tegn**. Skillelinjen var bredde, ikke type. De ti matchede
+fordi begge sider tilfældigvis var udfyldt til samme bredde — et sammenfald. Min ensidede
+trim fjernede udfyldningen på den ene side og ødelagde netop de par der passede ved
+sammenfaldet: trimmet 26 mod utrimmet 32 matcher ingenting. Natkørslen fejlede med
+
+```
+BLOCKED: [kontroltabel] delete keys match no row in the raw target at all (key normalisation)
+```
+
+på præcis de ti objekter der virkede før.
+
+Værre end den forkerte præmis er verifikationen. Jeg skrev to Spark-tests: én for gruppen
+jeg reparerede, og én "modprøve" for gruppen der virkede. Modprøven var **numerisk** — altså
+skrevet mod den præmis jeg ikke havde målt, ikke mod de data gruppen faktisk indeholder. Den
+ville være grøn både før og efter, og den beviste derfor ingenting om de ti tabeller den
+skulle beskytte. En modprøve der er afledt af samme antagelse som rettelsen er ikke en
+modprøve. Og begge tests kræver cluster og blev aldrig kørt, så selv den værdi de havde,
+blev aldrig hentet. 121 grønne tests og et ubevist omdrejningspunkt.
+
+**Den anden ting, og jeg siger den højt fordi briefen bad om det:** kravet var at
+bredde-32-testen skal fejle på nuværende HEAD. Den gør den — men med
+
+```
+AttributeError: module '<beslutningsmodul>' has no attribute '<den nye regel-funktion>'
+```
+
+og **ikke** med en værdi-uoverensstemmelse. Det er ikke sjusk i testen; det er en egenskab
+ved designet. Når reglen er én symmetrisk funktion anvendt på begge sider, kan den funktion
+ikke udtrykke en ensidet fejl: kører man den gamle funktion på begge sider, lander de også
+på samme værdi. Den gamle kode har slet ingen regel for raw-siden, og det er netop defekten
+— så det eneste en ren test kan se, er at reglen mangler. Den numeriske reproduktion ovenfor
+er derfor det egentlige bevis, og den er kørt.
+
+Deraf følger noget ubehageligt som jeg ikke vil pakke ind: **en ren, symmetrisk
+regel-funktion kan ikke bevise at Spark-siden bruger den på begge sider.** Transskriptionen
+er stadig håndskrevet, og det var dér fejlen sad. Derfor lagde jeg beskyttelsen i
+*strukturen* i stedet for i en påstand — slettesættet bærer ikke længere et raw-stavet
+nøglenavn, og parameteren er væk — men det endelige bevis ligger stadig i Spark-testene.
+
+**En tredje, mindre:** linteren kunne ikke køres. `python -m ruff check <filer>` svarede
+
+```
+C:\Python314\python.exe: No module named ruff
+```
+
+Ruff står som optional dependency i `pyproject.toml` og er ikke installeret i det aktive
+miljø. Jeg installerede den ikke, og filerne er derfor kun byte-kompileret, ikke lintet.
+
+### What I learned
+
+**En ensidet normalisering kan ikke være rigtig.** Den gør ikke sammenligningen korrekt —
+den flytter kun hvilke bredder der tilfældigvis stemmer overens. Sammenligningen skal
+reducere begge sider til samme form, eller også hviler den på et sammenfald. Det gælder
+uanset om man kalder normaliseringen trim, cast eller projektion.
+
+**Et sammenfald der virker, ser ud præcis som korrekthed i et testoutput.** De ti objekter
+havde fundet sletninger hver nat i ugevis. Det var det stærkeste "bevis" der fandtes for at
+den sti var rigtig, og det var ikke et bevis for noget som helst — begge sider bar bare
+samme udfyldning.
+
+**Og det jeg faktisk skal ændre ved mig selv:** når jeg forklarer et delt udfald med en
+egenskab ved data, skal jeg måle den egenskab før jeg bygger på den. Ikke aflede den af
+udfaldet. Den forklaring jeg havde ("de ti er numeriske") var bagudkonstrueret fra
+resultatet, og den var forenelig med alle de data jeg havde set — fordi jeg ikke havde set
+på data.
+
+### What was tricky
+
+At indse at "skriv en ren test der fejler på den gamle kode" ikke kan lade sig gøre i
+værdi-forstand her, og at det ikke er en mangel ved testen men en konsekvens af at reglen er
+symmetrisk. Jeg brugte flere runder på at prøve at formulere mig ud af det, før jeg
+accepterede at det rigtige svar var at sige det ligeud og levere reproduktionen ved siden af.
+
+Og afvejningen i 1f: at afgøre at en måling ikke skal bygges er sværere at stå på end at
+bygge den. Det argument der bar det, er ikke "det er dyrt" men "den ville køre dér hvor den
+ikke kan hjælpe" — guard D's dyre gren betales kun når nul rækker flages, og en kollision
+gør kun skade når noget flages.
+
+### What warrants review
+
+**Spark-testene er skrevet, men IKKE kørt.** De kræver Databricks Connect mod en kørende
+cluster; maskinen her har hverken Java eller pyspark, og jeg har ikke installeret nogen af
+delene. Jeg påstår ikke at de er grønne. De er igen det eneste sted hvor spejlingen mellem
+den rene regel og de to Spark-udtryk bliver bevist — og det er anden gang i træk at netop
+det bevis står uindfriet.
+
+Prøvekørslen skal dække **begge** bredder. Én gruppes kendte tal beviser ingenting om den
+anden; det er hele lærestykket fra denne regression.
+
+Kollisionsrisikoen ved tosidet trim er argumenteret, ikke målt. Argumentet holder hvis
+kolonnerne faktisk er fast bredde, og det er observeret på en stikprøve, ikke på hele
+tabellen. Forespørgslen der afgør det står i koden og i runbooken og bør køres én gang pr.
+objekt før den brede kørsel.
+
+Guard D's dyre gren er igen ikke kørt mod rigtige data, nu med et normaliseret join-udtryk
+på raw-siden. Et udtryk i joinen kan koste en projektion før scanningen kan beskæres; hvad
+det betyder på en tabel i hundredmillionklassen kan kun måles i målmiljøet.
+
+### Future work
+
+Det strukturelle hul står stadig åbent: to håndskrevne Spark-udtryk spejler én ren funktion,
+og intet automatisk fanger det hvis de glider fra hinanden. Det er nu sket én gang, med
+produktionskonsekvens. En mulighed er at lade de rene tests generere de par af værdier som
+Spark-testene kører på, så de to niveauer i det mindste deler datasæt — det fjerner ikke
+spejlingsrisikoen, men det gør det sværere at teste de to sider på forskellige antagelser,
+hvilket er præcis det der skete her.
+
+Step 1's og Step 2's åbne spørgsmål — om nøgleprojektionen i notebooken og normaliseringen i
+beslutningsmodulet burde være én funktion — er blevet mere relevant, ikke mindre. Der er nu
+tre steder der får to sider af en join til at tale samme sprog.
