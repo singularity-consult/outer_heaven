@@ -1049,3 +1049,175 @@ Afkortningen ved udtrækket er en accepteret tilstand, men den er ikke *dokument
 grænse nogen steder uden for denne begrundelse*. Hvis nogen senere spørger "hvor meget
 afkortes der", er svaret i dag en sætning i en afvisningsgrund. Det kunne bære at stå som
 en målt værdi ét sted, netop fordi kontrollen der ville have vist det nu er fjernet.
+
+## Step 6: To spor, to præmisser — og en guard der endelig læser hvad kilden sagde
+
+**Author:** builder
+
+### Prompt Context
+
+**Verbatim prompt:** "To ting mere. […] **1. Bredderne er nu målt på alle 29 CDC-tabeller —
+skriv det ind.** […] Ingen variabel bredde nogen steder. **Kollision ved trimning er dermed
+umulig på alle 29**: to værdier der kun adskiller sig ved efterstillede blanktegn ville have
+forskellig længde, og med `min = max` findes de par ikke. […] Den kollisions-forespørgsel du
+dokumenterede til håndkørsel pr. objekt […] er **overflødiggjort** af denne billigere og
+fuldstændige måling. […] Lad være med at slette historikken — skriv at den er afgjort. **2.
+Guard C's præmis gælder ikke ens på de to spor.** Dette er det egentlige fund, og det kom
+fra [kunden]. **Nøglesporet:** en sletning udledes af et **fravær** […] Dækningsgrad er det
+rigtige instrument der. **CDC-sporet:** en sletning er en **positiv erklæring** fra kilden —
+en DELETE-post med tidsstempel. Der er intet fravær at fejltolke. Dækningsgrad er derfor et
+fremmed mål på det spor. […] **Byg dette, og kun dette:** (a) bær sletteerklæringen med i
+guard C's afvisning […] (b) ny afvisning: `rows_to_flag` > antal distinkte slettenøgler […]
+Det er en **tilføjet** guard, ikke en løsnet. (c) **FJERN IKKE dækningsafvisningen på
+CDC-sporet.** Dette er en designbeslutning, og jeg vil have argumentet skrevet ind i koden
+frem for bare udført. […] Skriv derfor i koden at beslutningen er **udskudt med vilje**, og
+hvad der ville afgøre den […] Beslut efter de data findes, ikke før."
+
+**Interpretation:** Luk et spørgsmål der nu er målt, uden at slette sporet af hvorfor det
+blev stillet. Og tilføj en guard der måler mod det kilden faktisk sagde — uden at fjerne den
+guard der måler mod noget andet, fordi den beslutning ikke er moden.
+
+**Inferred intent:** Det interessante er ikke guarden; det er indsigten om at de to spor
+ikke har samme epistemiske form. Et fravær og en erklæring er ikke det samme bevis, og et
+instrument bygget til det ene er ikke automatisk gyldigt på det andet. Det er derfor (c) er
+den vigtigste af de tre: at modstå fristelsen til at handle på den indsigt før der er data
+nok til at vide om den også holder i praksis.
+
+### What I did
+
+**Bredderne først.** Kommentarblokken i beslutningsmodulet og det tilsvarende runbook-afsnit
+sagde begge "her er en risiko, kør denne forespørgsel pr. objekt hvis du mistænker noget".
+Begge er skrevet om til "her var risikoen, sådan blev den målt, og forespørgslen skal ikke
+køres". Ræsonnementet bliver stående ordret, for det er stadig ræsonnementet — det der
+ændrede sig er at præmissen blev efterprøvet i stedet for antaget. Den overflødiggjorte
+forespørgsel står tilbage i koden som en udkommenteret historik med en linje om hvorfor den
+er billigere besvaret et andet sted, og med hvad der ville genåbne spørgsmålet.
+
+**Filtrene fik ét hjem.** Guard C's afvisningstekst skulle bære to tal — antal distinkte
+slettenøgler og antal DELETE-poster — og de to kommer fra samme fire entitetsfiltre som
+selve slettesættet. Filtrene lå inde i den funktion der grupperer dem; jeg trak dem ud i en
+egen funktion, og lod grupperingen kalde den. Det er det samme greb som Step 4's flytning af
+nøgleprojektionen, af samme grund: et tal der står ved siden af en afvisning må ikke kunne
+beskrive et andet sæt end det der udløste afvisningen.
+
+**Den nye guard blokerer på én præcis ting:** flere flagede rækker end kilden erklærede
+distinkte slettenøgler. Det betyder at ét erklæret nøgle-id rammer flere aktuelle rækker,
+altså at nøglen ikke er unik blandt dem. Strengt større, ikke "forskellig fra" — og det er
+den detalje der afgør om guarden er brugbar. **Færre** flagede end erklærede er det normale,
+og det har to uskyldige forklaringer der forekommer hver nat: en erklæret nøgle hvis række
+allerede er markeret slettet og derfor er faldet ud af det aktuelle rækkesæt, og en nøgle
+der blev slettet og siden genindsat, som beskyttelsen mod genindsættelse lægger tilbage. En
+guard der fyrede på "forskellig fra" ville fyre på næsten hver kørsel, hvilket er nøjagtig
+den fejl hele modulet er skrevet imod.
+
+**Argumentet i begge retninger står i koden.** Ikke konklusionen alene, men hvad der taler
+for at fjerne dækningsafvisningen på CDC-sporet, hvad der taler imod, hvorfor imod vejer
+tungest lige nu, og præcis hvilket tal der ville afgøre det — som tilfældigvis er det tal
+måle-notebooken fra Step 4 producerer.
+
+Testsuiten gik fra 176 til 189 rene tests. Tærskelværdierne er urørte.
+
+### Why
+
+Fordi et instrument bygget til at måle et fravær ikke automatisk er gyldigt på en erklæring.
+På det ene spor er der intet andet end fraværet at gå efter, og en dækningsgrad er det
+bedste man kan gøre. På det andet står der et tal i kilden, med et tidsstempel, som ingen
+læste. At lade en afvisning stå uden det tal ved siden af er at tvinge den der læser
+afvisningen til at gætte — og gættet falder oftest ud til "overrule den", fordi afvisningen
+ikke giver ham noget at tænke med.
+
+Og fordi (c) er den rigtige beslutning netop nu: sporet har fået to fejlrettelser på en uge,
+den første rene brede kørsel har ikke fundet sted, og ingen ved endnu hvad "normalt" ser ud
+som her. Den nye konsistensguard fanger en oppustning der *stammer fra nøglens unikhed*; den
+fanger ikke en kontroltabel der selv er gået galt i stor skala. Fjernede man den gamle guard
+nu, ville der ikke være nogen bremse tilbage på præcis det scenarie.
+
+### What worked
+
+**At skrive argumentet imod sig selv ind i koden.** Oplægget bad om det, og det er
+bedre end en kommentar der bare forklarer hvad koden gør: den næste læser arver ikke en
+regel, han arver en uafsluttet diskussion med et navngivet kriterium for hvordan den
+afsluttes. Det er den eneste form jeg kender hvor "vi gjorde det ikke endnu" ikke bliver til
+"ingen ved hvorfor det er sådan".
+
+**Tællingen tages ét sted og læses af begge guards.** Den ene guard beder om tallet når
+intet flages, den anden når noget flages — så mellem dem betales den én gang uanset hvilken
+vej kørslen går. Og den bliver ved med at være en callable ind i den første, fordi "den dyre
+kontrol køres kun i det tvetydige tilfælde" er en egenskab en test hævder, ikke et løfte
+kalderen giver.
+
+**At lade den overflødiggjorte forespørgsel blive stående som historik.** Fristelsen var at
+slette den. Men en forespørgsel der forsvinder efterlader ikke en oplysning om at den blev
+afgjort — den efterlader et hul, og den næste der får den samme bekymring genopfinder den.
+
+### What didn't work
+
+Ingen fejlende kommandoer. To fund fra min egen gennemgang af diff'en:
+
+En kommentar inde i grupperingsfunktionen forklarede hvorfor en bestemt hjælper "lige
+ovenfor" ikke genbruges til nøglen — og hjælperen var netop flyttet ned i den nye funktion,
+så "lige ovenfor" pegede på ingenting. Rettet til at navngive den funktion den nu bor i.
+
+Og oplægget kaldte den nye guard "gratis: begge tal er allerede talt". Det er kun halvt
+rigtigt, og jeg skrev det ikke af. Antallet af flagede rækker var talt; antallet af
+distinkte slettenøgler blev på den hidtidige lykkelige sti **ikke** talt — den anden guard
+betalte kun for den når intet blev flaget. CDC-sporet betaler derfor nu én aggregering over
+den filtrerede kontroltabel pr. tabel som det ikke gjorde før. Det er ikke en scanning af
+måltabellen og det er en pris værd at betale, men det er en pris, og den står skrevet i
+koden som en pris frem for som "gratis".
+
+### What I learned
+
+**Fravær og erklæring er ikke samme slags bevis, og et instrument arver ikke gyldighed på
+tværs.** Dækningsgrad blev bygget til et spor hvor en sletning *kun* kan udledes af at noget
+mangler, og den blev derefter anvendt på et spor hvor kilden siger det direkte. Ingen
+besluttede nogensinde at den skulle gælde begge steder; den gjorde det fordi den lå i den
+fælles sti. Det er en almen fejlform: en kontrol flytter sig fra det problem den blev født
+til, uden at nogen genbesøger præmissen.
+
+**Et enkelttilfælde er en anledning til at stille spørgsmålet, ikke til at besvare det.**
+Den tabel der rejste sagen ville have passeret uden dækningsafvisningen, og det er fristende
+at læse som et argument for at fjerne den. Men ét er ikke et mønster, og den samme
+observation kan lige så godt betyde at guarden gør sit arbejde på en tabel hvis data vi ikke
+forstår endnu. Forskellen afgøres af data fra alle objekter, og de findes ikke endnu.
+
+### What was tricky
+
+**Strengt større mod forskellig fra.** Den naive udgave af guarden — "antallet af flagede
+rækker skal svare til antallet af erklærede nøgler" — ser stærkere ud og er ubrugelig: begge
+de normale afvigelser går den ene vej, så den ville fejle hver nat. At finde ud af hvilken
+af de to ulighedsretninger der bærer information krævede at gennemgå hvorfor en erklæret
+nøgle *ikke* flager en række, og der var to uafhængige grunde, som begge er korrekte
+tilstande.
+
+**Rækkefølgen mellem de to guards.** De er gensidigt udelukkende — den ene kræver at intet
+flages, den anden at der flages mere end erklæret — men det er ikke synligt før man skriver
+begge betingelser op ved siden af hinanden. De ligger nu som naboer med den rækkefølge
+skrevet ned, frem for at det skal udledes hver gang.
+
+### What warrants review
+
+Ingen del af dette er kørt. Det verificerede er at de rene tests er grønne, at begge
+notebooks parser, og at tærskelværdierne er uændrede — bekræftet på diff'en og ikke kun i
+hukommelsen.
+
+Den nye aggregering pr. CDC-tabel er ikke målt. Den går på en allerede filtreret
+kontroltabel og ikke på måltabellen, så den bør være ubetydelig ved siden af de scanninger
+kørslen laver i forvejen, men det er en forventning og ikke en måling.
+
+Og det tal hele den udskudte beslutning hænger på — forholdet mellem flagede rækker og
+erklærede slettenøgler på tværs af alle objekter — findes ikke endnu. Indtil det gør, er
+(c) et velbegrundet "ikke endnu" og ikke et svar.
+
+### Future work
+
+Beslutningen om dækningsgraden på CDC-sporet skal træffes, og kriteriet er skrevet ned, så
+den næste der åbner sagen skal ikke genopfinde diskussionen — kun køre måle-notebooken og
+læse ét forhold af den.
+
+Det er nu fjerde gang i denne dagbog at svaret på "hvordan undgår vi at to steder betyder
+forskellige ting" har været at flytte noget ind i beslutningsmodulet. Nøgleprojektionen,
+flag-opslaget, entitetsfiltrene. Mønstret er klart nok til at være en regel frem for en
+serie af enkeltbeslutninger: hvad der bærer en beslutning hører i modulet, hvad der bærer
+I/O bliver i notebooken, og en tvivl afgøres af om stykket kan tage fejl på en måde der
+ændrer hvilke rækker der bliver rørt.
