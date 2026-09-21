@@ -1221,3 +1221,204 @@ flag-opslaget, entitetsfiltrene. Mønstret er klart nok til at være en regel fr
 serie af enkeltbeslutninger: hvad der bærer en beslutning hører i modulet, hvad der bærer
 I/O bliver i notebooken, og en tvivl afgøres af om stykket kan tage fejl på en måde der
 ændrer hvilke rækker der bliver rørt.
+
+## Step 7: Den første rigtige kørsel — måleren målte, og tre af dens egne fejl kom frem
+
+**Author:** builder
+
+### Prompt Context
+
+**Verbatim prompt:** "Måle-notebooken er kørt i dev for første gang. Kerneresultatet er
+godt, og tre fejl kom frem. **Den ene er min, ikke din.** […] **88 målte nøglekolonner, 0
+trim-kollisioner.** […] Bredde- og kollisionsspørgsmålet er dermed lukket på **hele
+estatet**. […] **Fejl 1 — [en tabel] vælter kørslen.** […] Notebooken filtrerer på
+[SCD2-kolonnen for den aktuelle række] uden at spørge om kolonnen findes. […] **Genbrug den skip frem for
+at skrive en ny kontrol.** Du kalder allerede `choose_track`; svaret ligger der. Honorér
+det, før du rører tabellen […] **Fejl 2 — snapshot-kolonnen er ubrugelig, og præmissen bag
+den var MIN.** […] **Jeg gav dig den forkerte præmis.** Jeg skrev at dateret undermappe =
+gyldigt bevis, og løs fil i roden = levn. Det er forkert. Løse filer i roden er den
+**normale, fungerende form** for aktive tabeller […] Din `key_snapshot_shape` gør nu det
+stik modsatte af det rigtige: den kasserer de gyldige snapshots. **Friskhed afgøres på
+`policy.snapshot_cutoff(files)` alene.** […] **Fejl 3 — begrundelsen navngiver den forkerte
+årsag.** […] **Fire betingelser.** De fjorten er udeladt fordi `[det inkrementelle flag] = 0`, ikke
+fordi de er CDC-tabeller. […] Udtryk klausulen **ét sted** i policy-modulet som data, og
+udled beskeden ved at evaluere den mod tabellens egne flag […] En forklaring der peger på
+den forkerte årsag er værre end ingen — du har selv skrevet tre kommentarblokke om i denne
+sag af præcis den grund."
+
+**Interpretation:** Instrumentet virkede og leverede sit hovedresultat. Tre fejl i
+instrumentet selv skal rettes, og den ene af dem er en præmis jeg fik udleveret og byggede
+en gate på uden at efterprøve den.
+
+**Inferred intent:** Den vigtige er nummer to. En måling der kasserer gyldige data er
+værre end ingen måling, fordi den ligner et fund: "intet snapshot" læses som en
+oplysning om verden og ikke som en fejl i kikkerten. At leaden selv udpeger sin egen
+forkerte præmis er den reaktion der gør det muligt at fange den — men jeg byggede en gate
+på den uden at spørge, og det er min halvdel.
+
+### What I did
+
+**Fejl 1 — honorér skippet.** Notebooken kaldte allerede `choose_track` og skrev svaret i
+rækken, og læste så videre i tabellen uanset hvad svaret var. Det var mit valg, truffet
+med den begrundelse at en skippet tabels nøgler stadig er interessante at måle. Den
+begrundelse holder ikke mod et append-only mål: det har slet ingen SCD2-kolonner, så
+filteret på den aktuelle række ikke kan resolve, og aggregeringen kaster. Skippet honoreres
+nu før tabellen røres, og rækken bærer skip-årsagen ordret. En skippet tabel er et
+resultat.
+
+Det efterlod to tjek længere nede — findes måltabellen, har den nøgler i metadata — som
+klassifikationen nu altid fanger først. De er uden for rækkevidde. Jeg lod dem stå, men
+mærkede dem som det backstop de er, frem for at lade dem se ud som levende stier: de er de
+to betingelser aggregeringerne ikke kan overleve, og skifter rækkefølgen i klassifikationen
+nogensinde, skal de fejle som en række og ikke som en exception.
+
+**Fejl 2 — friskhed er alder, ikke form.** Jeg havde bygget en gate på formen: dateret
+undermappe = gyldigt bevis, filer direkte i roden = levn. Den præmis kom fra leaden, jeg
+efterprøvede den ikke, og den er forkert. Løse filer i roden er den normale form for flere
+aktive tabeller, og produktionens egen nøglespors-funktion læser dem ud af roden hver nat —
+netop via den `return root_path`-gren jeg selv havde opdaget og rapporteret. Gaten kasserede
+derfor tre levende tabellers gyldige snapshots og vandt intet.
+
+Rettelsen er at lade snapshot'ets eget cutoff afgøre det alene. Det findes i begge former,
+fordi det læses af filernes ændringstidspunkt. Form rapporteres stadig — det er en rigtig
+iagttagelse — men den gater ikke. To domme der kun kunne opstå af formgaten er pensioneret.
+Den oprindelige bekymring er bedre tjent end før: et levn har et gammelt cutoff og giver
+stadig ingen tællinger, men et snapshot hvis eneste brist var at ligge i roden bliver ikke
+længere smidt væk.
+
+Jeg verificerede derefter opløsningsstien trin for trin mod produktionens, programmatisk
+frem for ved at læse: samme metadatafelt, samme sti-sammensætning, samme mappe-resolver,
+samme fil-listning, samme cutoff-funktion, samme saniterings- og projektionskald. Eneste
+afvigelse er den dokumenterede, og den ligger nedstrøms for stien.
+
+**Fejl 3 — udled beskeden, gæt den ikke.** Jeg havde hårdkodet én forklaring på hvorfor en
+tabel ikke er dækket af det daglige udtræk. Triggerens klausul har fire betingelser, og
+fjorten objekter fik derfor udpeget en årsag der beviseligt ikke gælder for dem. Klausulen
+ligger nu ét sted som data, og beskeden udledes ved at evaluere den mod objektets egne flag,
+så den navngiver den eller de betingelser der faktisk fejlede. En flagværdi der ikke kan
+læses rapporteres som "kunne ikke evalueres" og ikke som "holder ikke" — det er to
+forskellige fund, og at rapportere det andet som det første er præcis den fejlklasse
+opgaven handlede om.
+
+**Et nyt widget, som ikke stod i oplægget.** De tre snapshot-ramte tabeller blev målt
+*rent* i første kørsel. Gentagelses-sikkerheden springer dem derfor over, og den kan ikke
+se at "rent" i mellemtiden er kommet til at betyde noget andet. Uden en måde at tvinge en
+genmåling frem kunne den samme kørsels-id ikke gøres færdig — hvilket var netop det
+oplægget bad om. Navngivet liste frem for en boolean, af samme grund som den eksisterende
+override er det.
+
+Testsuiten gik fra 189 til 203 rene tests. Fejl 2's test hævder at filer i roden med et
+friskt cutoff **giver** tællinger, og der er en strukturel test på at formen ikke længere er
+en parameter til friskhedsbeslutningen.
+
+### Why
+
+Fordi en måling der kasserer gyldige data er farligere end en måling der mangler. "Intet
+snapshot" står i en resultattabel og ser ud som en oplysning om verden. Den eneste måde at
+opdage at det var kikkerten og ikke himlen, var at nogen sammenholdt det med en
+produktionslog fra tre dage før. Det er ikke en kontrol man kan regne med at få gratis to
+gange.
+
+Og fordi formen aldrig var signalet. Alderen var, hele tiden, og den findes i begge former.
+Gaten målte den ene ting der tilfældigvis korrelerede med det man ville vide, på en
+delmængde af tabellerne.
+
+### What worked
+
+**At leaden udpegede sin egen forkerte præmis.** Det er det der gjorde fejlen findbar
+overhovedet. Havde meldingen været "snapshot-kolonnen ser forkert ud, fiks den", ville jeg
+have ledt i min egen kode efter en fejl der ikke var der — gaten gjorde nøjagtig hvad den
+var bygget til.
+
+**At verificere stien programmatisk frem for ved at læse den.** Jeg skrev et lille script
+der trak begge funktioner ud og tjekkede hvert opløsningstrin som tekst i begge. Det tog et
+minut og gav et svar jeg kan citere, frem for en påstand om at jeg havde kigget.
+
+**At beholde den udækkede-observation som observation.** Fristelsen var at lade den gate
+igen, bare rigtigt denne gang. Men et nøgleudtræk kørt i hånden *som måling* giver et
+friskt cutoff, og så fortjener det sine tællinger uanset hvad den natlige trigger mener.
+Skellet mellem "forkert som drift" og "rigtigt som måling" er kun meningsfuldt hvis koden
+respekterer det.
+
+### What didn't work
+
+Ingen fejlende kommandoer i selve arbejdet — fejlene var fundet af kørslen, ikke af mine
+værktøjer. Fejlen fra kørslen, ordret:
+
+```
+RuntimeError: 1 table(s) failed to measure: [tabel]
+(AnalysisException: [UNRESOLVED_COLUMN.WITH_SUGGESTION] A column ...
+[SCD2-kolonnen for den aktuelle række] cannot be resolved.
+Did you mean one of the following? [...])
+```
+
+Otte tests gik rødt af rettelsen, som de skulle — de hævdede den kasserede adfærd. Jeg
+erstattede dem frem for at justere dem, fordi det ikke var deres tal der var forkerte, det
+var det de hævdede.
+
+Et fund i min egen gennemgang af diff'en: efter at skippet honoreres, er de to følgende
+tjek uden for rækkevidde. Ingen test fangede det, og ingen ville have gjort det — en
+uopnåelig gren fejler ikke. Det er kun synligt ved at læse rækkefølgen af betingelser i den
+funktion jeg netop havde kaldt.
+
+### What I learned
+
+**Det er tredje gang på en uge at en umålt præmis er blevet til kode.** Først "de ti er
+numeriske, castet trimmer som bivirkning". Så "snapshottet beviser at slettesættet var
+ufuldstændigt". Nu "dateret mappe = gyldigt, løs fil = levn". Mønstret er ikke at folk
+gætter — det er at en præmis der leveres *sammen med* en opgave bliver behandlet som en del
+af opgaven frem for som en påstand der skal efterprøves. En observation der kommer ind i
+en instruktion, kommer ind uden det tjek den ville have fået hvis jeg havde fundet den selv.
+
+**Formen på data korrelerer tit med det man vil vide, og er næsten aldrig det man vil
+vide.** Dateret mappe korrelerede med "aktivt udtræk" på en delmængde af tabellerne. Det
+man ville vide var alderen, og den kunne læses direkte. En gate på en korrelat fejler
+præcis på de tilfælde hvor korrelationen ikke holder — og det er de tilfælde man byggede
+målingen for.
+
+**En gate skal kunne besvare "hvad ville få dig til at sige nej til noget gyldigt".** Havde
+jeg stillet formgaten det spørgsmål, var svaret "et aktivt snapshot uden dateret mappe", og
+så var det eneste tilbageværende spørgsmål om sådan en findes. Det tog leaden ét opslag i
+en produktionslog at svare på.
+
+### What was tricky
+
+**At skelne mellem tre ting der alle hedder "ikke dækket".** En tabel kan være uden for det
+daglige udtræk (fire mulige grunde), have et snapshot der er for gammelt, eller slet ingen
+filer have. Første udgave rullede det sammen til én dom med én forklaring, og både
+sammenrulningen og forklaringen var forkerte. At holde dem fra hinanden krævede at afgøre
+hvilken af dem der faktisk må tilbageholde et tal — kun alderen — og lade de to andre være
+iagttagelser ved siden af.
+
+**Rækker skrevet før rettelsen.** De bærer de to pensionerede domme og ser ud som
+målinger. Gentagelses-sikkerheden springer dem over, fordi de blev skrevet rent. Det er den
+slags migrationsproblem der ikke findes i testene og kun findes i virkeligheden, og
+løsningen — et eksplicit widget plus en note i dokumentationen om hvordan man genkender en
+forældet række — er mindre elegant end jeg havde håbet og den eneste jeg kan stå inde for.
+
+### What warrants review
+
+Intet af dette er kørt. Verificeret er: begge rene suiter grønne (203 og 394), begge
+notebooks parser, linteren tilfreds bortset fra det sædvanlige notebook-mønster, tærskler
+urørte bekræftet på diff'en, og opløsningsstien trin for trin identisk med produktionens.
+
+Friskhedsgrænsen er stadig ikke målt mod virkelige snapshot-aldre — nu har vi til gengæld
+en kørsel der kan svare på det, fordi alderen rapporteres for hvert objekt uanset dom.
+
+Genkørslen er den egentlige prøve: de tre tabeller skal komme tilbage med et cutoff og ikke
+med fraværet af et, og den skippede tabel skal stå som skippet frem for at vælte kørslen.
+Begge dele er skrevet ud i dokumentationen som noget man kan aflæse, ikke som noget man
+håber.
+
+### Future work
+
+Der bør være et sted hvor en præmis der følger med en opgave bliver skrevet ned *som en
+påstand med en kilde*, frem for at glide ind i koden som en forudsætning. Tre gange på en
+uge er ikke uheld. Det billigste jeg kan komme i tanke om: når en instruktion indeholder en
+observation om data, skal den observation citeres i koden sammen med hvor den kommer fra —
+så den næste der læser linjen kan se at den hviler på noget, og hvad.
+
+Formtjekket hører stadig hjemme i mappe-resolveren frem for ved siden af den. Nu hvor
+formen er blevet en ren iagttagelse i stedet for en gate, er det blevet mindre presserende
+og ikke mindre rigtigt: en resolver der returnerer roden uden at sige at den gjorde det,
+lader hver kalder udlede det af en sti-sammenligning.
