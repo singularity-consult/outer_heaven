@@ -19,6 +19,9 @@ Udfordr mine antagelser frem for at være enig.
 - Filadgang: læs frit alt under C:\claudes_folder uden at spørge. Ændr frit i repos jeg selv ejer (Singularity/private, fx outer_heaven). I repos jeg IKKE ejer (kunders repos som SEGES/Grundfos, eller reference-kloner som _analyze_fabrik) ændrer du aldrig noget uden min eksplicitte instruktion.
 - Min interaktive shell er PowerShell. Giv mig PowerShell-kompatible kommandoer, ikke bash (ingen `for ... do ... done` eller `/c/...`-stier). Multi-linje-kommandoer skal være separate komplette sætninger, så de overlever paste uden at knække. Referér Git-bundtede værktøjer (fx gpg) med fuld sti (`C:\Program Files\Git\usr\bin\gpg.exe`), da de ikke er på PowerShells PATH. Dit eget Bash-værktøj er en anden sag; dette gælder kommandoer jeg selv skal køre.
 
+## Projektviden (pegepind)
+- Før du svarer på noget om en kunde eller et projekt (SEGES, Grundfos, Air Greenland, private projekter): læs `C:\claudes_folder\repos\command-deck\INDEX.md` og den projektfil den peger på. Projektviden og status bor dér (privat repo `singularity-consult/command-deck`), aldrig i outer_heaven. Mangler klonen på maskinen: klon den først.
+
 ## Værktøjer (pegepinde; detaljen bor i skills)
 - Git, commits og branches: brug `git`-skillen.
 - PowerShell-scripts (.ps1): brug `powershell-safety`-skillen før du ændrer dem.
