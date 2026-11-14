@@ -32,6 +32,7 @@ A Claude Code plugin that bundles the skills, hooks, and agents for a consistent
 - **pdf**: Extract text (and tables) from digital, text-based PDFs using pure-Python libraries (`pypdf`/`pdfplumber`), no OCR. Detects a scanned or image-only PDF up front and says so rather than returning empty output.
 - **powershell-safety**: Hard rule: never modify an existing `.ps1` file without Benny's explicit approval first; also covers authoring paste-safe PowerShell snippets for Benny. Reading and running PowerShell is fine.
 - **python**: Python conventions for Benny's work (Databricks/PySpark, pandas, pipeline libraries, FastAPI): PEP 8 style and idiom, type hints, structure, and the traps that bite most (mutable defaults, chained assignment, Spark laziness).
+- **second-opinion**: Get an independent second opinion from Google Gemini on code, a diff, an architecture or a decision: send requirements plus raw material (never Claude's conclusions), verify each finding, report disagreements with both sides. Stdlib-only script with a default-deny guard for customer repos.
 - **simple-english**: Write or check technical text against ASD-STE100 Simplified Technical English: 20/25-word sentence limits, one word one meaning, simple tenses, active voice, condition before command. Third-party skill, MIT, from [AminBlg/SimpleEnglish](https://github.com/AminBlg/SimpleEnglish); vendored verbatim.
 - **sql**: SQL conventions and dialect guidance for Databricks SQL, Snowflake SQL, and T-SQL (UPPERCASE keywords, CTEs, explicit columns). Dialect-specific syntax and gotchas in `references/`.
 - **terraform**: Terraform/IaC conventions and safety for Benny's Azure repos: plan before apply, prod needs approval, never commit secrets or state, pin versions, `fmt`/`validate`.
@@ -42,3 +43,4 @@ A Claude Code plugin that bundles the skills, hooks, and agents for a consistent
 
 - **builder**: Takes requirements and ships the work in the lead's worktree, validating it before handing back. Validation-centered for Benny's stack (Databricks/PySpark, Python, SQL, Terraform/IaC, ADF, Power BI).
 - **lead**: Refines an idea into concrete requirements, challenges assumptions, manages scope, and runs the builder team in an isolated worktree. Does not implement.
+- **reviewer**: Gets a second opinion from Gemini via the `second-opinion` skill, after builder self-review and on contested decisions, and returns verified findings to the lead. Invoked by the lead only; does not edit code.
