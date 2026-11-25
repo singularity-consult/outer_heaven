@@ -23,7 +23,7 @@ Benny drew that boundary explicitly for the datavilla diaries after being shown 
 - `.claude-plugin/`: marketplace.json + plugin.json (the plugin version lives in plugin.json)
 - `skills/`: all skills, one folder per skill with a SKILL.md
 - `agents/`: sub-agents
-- `hooks/`: hooks.json + scripts (session-start context injection)
+- `hooks/`: hooks.json + scripts (session-start context injection; "gem status" prompt hook that offers a diary entry)
 - `docs/diary/`: implementation diaries (delivery level; customer-confidential detail kept out)
 - `docs/insights/`: work-style insights about Benny (created when the work-style-insight skill runs)
 
