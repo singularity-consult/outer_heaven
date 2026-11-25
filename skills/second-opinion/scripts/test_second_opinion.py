@@ -434,6 +434,26 @@ class CostTests(unittest.TestCase):
                 self.assertNotIn(" USD =", line)
                 self.assertNotIn("DKK", line)
 
+    def test_no_token_usage_gets_no_number(self) -> None:
+        # No usageMetadata, or one without promptTokenCount: 0.0000 USD would be a wrong number.
+        for usage in ({}, {"totalTokenCount": 0}, {"candidatesTokenCount": 50}, {"promptTokenCount": None}):
+            for override in (None, (1.0, 5.0)):
+                with self.subTest(usage=usage, override=override):
+                    cost = so.estimate_cost("gemini-3.1-pro-preview", usage, BEFORE_PRICE_CHANGE,
+                                            price_override=override)
+                    self.assertIsNone(cost["usd"])
+                    self.assertIsNone(cost["dkk"])
+                    self.assertIsNone(cost["tier"])
+                    self.assertIn("no token usage", cost["reason"])
+                    line = so.cost_line(cost)
+                    self.assertTrue(line.startswith("cost (estimate): price unknown: the response carried no token "
+                                                    "usage"))
+                    self.assertNotIn("USD", line)
+                    self.assertNotIn("DKK", line)
+        # A reported count of zero is usage, and is priced.
+        zero = so.estimate_cost("gemini-3.1-pro-preview", {"promptTokenCount": 0}, BEFORE_PRICE_CHANGE)
+        self.assertEqual(zero["usd"], 0.0)
+
     def test_price_override_wins_over_the_table(self) -> None:
         usage = {"promptTokenCount": 1_000_000, "candidatesTokenCount": 1_000_000}
         for model in ("gemini-3.1-pro-preview", "a-model-not-in-the-table"):
@@ -528,6 +548,20 @@ class CostOutputTests(OwnedRepoCase):
         self.assertIsNone(cost["usd"])
         self.assertIsNone(cost["dkk"])
         self.assertTrue(cost["reason"])
+
+    def test_response_without_usage_metadata_prints_no_number(self) -> None:
+        response = fake_response(self.ANSWER)
+        del response["usageMetadata"]
+        code, out, err = self.run_main("--requirements-text", "r", "--files", "a.py", response=response)
+        self.assertEqual(code, 0)
+        self.assertIn("usage: promptTokenCount=0 thoughtsTokenCount=0 candidatesTokenCount=0 totalTokenCount=0", err)
+        self.assertIn("cost (estimate): price unknown: the response carried no token usage", err)
+        self.assertNotIn("0.0000", err)
+        result = json.loads(out)
+        self.assertIsNone(result["cost"]["usd"])
+        self.assertIsNone(result["cost"]["dkk"])
+        self.assertIn("no token usage", result["cost"]["reason"])
+        self.assertEqual(result["usage"]["promptTokenCount"], 0)
 
     def test_flags_and_env_reach_the_output(self) -> None:
         os.environ[so.USD_DKK_ENV_VAR] = "7.5"
@@ -630,8 +664,11 @@ class ModeTests(OwnedRepoCase):
                 prompt = so.SYSTEM_PROMPTS[mode]
                 self.assertIn("adversarial by design", prompt)
                 self.assertIn("at the level of the material", prompt)
-                self.assertIn("Line-level bugs in a single file are out of scope unless they show a structural "
-                              "problem", prompt)
+                # Only the modes whose material is files carry the line-level sentence.
+                line_level = "Line-level bugs in a single file are out of scope unless they show a structural problem"
+                self.assertEqual(line_level in prompt, mode in ("architecture", "solution"))
+                self.assertNotIn(". \n", prompt)
+                self.assertNotIn("..", prompt)
                 self.assertIn("exactly one coverage item for every dimension", prompt)
                 self.assertIn("not_assessable is a valid and expected answer", prompt)
                 self.assertIn("The summary must not call anything sound", prompt)

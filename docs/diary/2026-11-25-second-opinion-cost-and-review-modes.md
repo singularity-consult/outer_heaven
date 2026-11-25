@@ -191,3 +191,51 @@ Wording the result. "HTTP 200 and a sensible answer" reads like "it works", and 
 ### Future work
 
 One call with an image that contradicts its requirement text (for example a card in two other colours than the text names) settles whether the model reads the image. The architecture, solution and product prompts have not run live; the lead's planned architecture rerun is the first of those. Neither JPEG, WEBP, several images in one call, nor `--context` has run live.
+
+## Step 4: Two follow-up fixes from the lead's read of the hand-back
+
+**Author:** builder
+
+### Prompt Context
+
+**Verbatim prompt:** "Two small follow-up fixes on branch second-opinion-cost-and-review-modes, as one new commit (same rules: stage by name, no push, no live calls at all this time). 1. Missing usage metadata must not produce a number. When the response has no `usageMetadata` (or no promptTokenCount in it), the cost line must say the price is unknown because the response carried no token usage, and the JSON cost must have usd null and dkk null with a reason. Today it prints 0.0000 USD, which is a wrong number. Add a test. Update the SKILL.md sentence that documents the old behaviour. 2. The sentence \"Line-level bugs in a single file are out of scope unless they show a structural problem\" belongs only in the architecture and solution prompts. Remove it from product and design (my requirement B2 was worded too broadly). Keep \"review at the level of the material\" in all four. Adjust tests if any pin it."
+**Interpretation:** Close the two open points I listed in my self-review: a cost of zero for a response with no usage, and a sentence about files in two prompts whose material is not files.
+**Inferred intent:** No number that is not backed by token counts, and no instruction in a prompt that does not fit the material it reviews.
+
+### What I did
+
+In `estimate_cost` a response with no `promptTokenCount` now returns before any price lookup: `usd` and `dkk` are null and `reason` says the response carried no token usage. The check comes before the price override, so `--price-in` and `--price-out` do not turn it back into a number. A reported count of 0 is still usage and is still priced; the test holds both sides.
+
+The line-level sentence moved out of the shared prompt frame into a constant that only `architecture` and `solution` get. The test that pinned the sentence in all four prompts now asserts where it is and where it is not, and that removing it left no stray space or double full stop.
+
+SKILL.md: the sentence that documented the zero is replaced, the line about line-level bugs names the two modes, and the note on the live call says that the design prompt has lost one sentence since that call.
+
+`python -m unittest discover -s skills/second-opinion/scripts -v`: 81 tests, OK. The wire-pin test for code mode passed unchanged. No live call.
+
+### Why
+
+A cost of 0.0000 USD next to a usage line of zeros looks like a free call. It is a call nobody could price.
+
+### What worked
+
+Both points were already written down as open in the self-review, so the fix was to act on a known list, not to search.
+
+### What didn't work
+
+Nothing failed in this step.
+
+### What I learned
+
+"Absent" and "zero" are different answers from an API, and `int(x or 0)` erases the difference. The usage line keeps printing zeros for an absent count, as it did before this feature; only the cost line now tells the two apart.
+
+### What was tricky
+
+The one live call ran with the design prompt that still held the removed sentence. The claim "design mode ran live" is therefore true for the earlier wording only, and the documentation has to say that.
+
+### What warrants review
+
+The design and product prompts in their present form: `python skills/second-opinion/scripts/second_opinion.py --mode product --requirements-text x --context CLAUDE.md --dry-run`.
+
+### Future work
+
+The design prompt in its present form has not run live. The call that tests whether the model reads the image (Step 3) would cover it.

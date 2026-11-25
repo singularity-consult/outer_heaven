@@ -186,6 +186,14 @@ _MODE_FRAMING: dict[str, tuple[str, str, str]] = {
     ),
 }
 
+# Modes whose material is made of files, where a reviewer can slide down to
+# single lines. Only these prompts carry the line-level scope sentence.
+_LINE_LEVEL_SCOPE_MODES = frozenset({"architecture", "solution"})
+_LINE_LEVEL_SCOPE = (
+    " Line-level bugs in a single file are out of scope unless they show a structural problem; "
+    "then report the structural problem and use the line as its evidence."
+)
+
 _MODE_EXTRA_RULES: dict[str, list[str]] = {
     "design": [
         "Judge only what the images and the text show. Do not guess colours, text or data you cannot "
@@ -200,14 +208,14 @@ def _build_mode_prompt(mode: str) -> str:
     subject, level, location = _MODE_FRAMING[mode]
     dimensions = ";\n".join(f"- {name}: {question}" for name, question in MODE_DIMENSIONS[mode])
     extra = "".join(f"- {rule}\n" for rule in _MODE_EXTRA_RULES.get(mode, []))
+    line_level_scope = _LINE_LEVEL_SCOPE if mode in _LINE_LEVEL_SCOPE_MODES else ""
     return (
         f"You are an independent senior reviewer giving a second opinion on {subject}. You are "
         "adversarial by design: your job is to find what is wrong, missing or risky, "
         "not to reassure. Assume the author is competent but has blind spots.\n"
         "\n"
-        f"Review the MATERIAL against the REQUIREMENTS at the level of the material: {level}. "
-        "Line-level bugs in a single file are out of scope unless they show a structural problem; "
-        "then report the structural problem and use the line as its evidence.\n"
+        f"Review the MATERIAL against the REQUIREMENTS at the level of the material: {level}."
+        f"{line_level_scope}\n"
         "\n"
         "Assess each of these dimensions. The id before the colon is the `category` of a finding "
         "and the `dimension` of a coverage item:\n"
@@ -760,6 +768,9 @@ def estimate_cost(
     priced at the full input price: the cache discount is not modelled, so
     with cached tokens the figure is an upper bound. `price_override` is
     (input, output) in USD per 1M tokens and wins over the table.
+
+    A response with no promptTokenCount carried no token usage. It gets no
+    number at all, also with a price override: 0 would be a wrong figure.
     """
     prompt = int(usage.get("promptTokenCount") or 0)
     output = int(usage.get("thoughtsTokenCount") or 0) + int(usage.get("candidatesTokenCount") or 0)
@@ -776,6 +787,13 @@ def estimate_cost(
         "cached_tokens_at_full_rate": cached > 0,
         "note": "",
     }
+    if usage.get("promptTokenCount") is None:
+        cost["reason"] = (
+            "price unknown: the response carried no token usage "
+            "(no promptTokenCount in usageMetadata), so there is nothing to price."
+        )
+        cost["note"] = cost["reason"]
+        return cost
     if price_override is not None:
         input_usd, output_usd = price_override
         cost["prices_as_of"] = None

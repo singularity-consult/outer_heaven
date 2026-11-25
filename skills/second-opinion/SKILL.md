@@ -74,7 +74,7 @@ Never send Claude's conclusion, self-review, chosen option or opinion. A reviewe
 
 **Choose the mode per call. Change a mode's prompt in the script, not per call**, so every review of that kind uses the same bar. `--focus` narrows a review; it does not replace the mode.
 
-A non-code mode reviews at the level of the material. Line-level bugs in a single file are out of scope there unless they show a structural problem. That is the reason the modes exist: a structure sent to the code prompt comes back as procedural findings in single files.
+A non-code mode reviews at the level of the material. In `architecture` and `solution` mode, where the material is often files, the prompt also says that line-level bugs in a single file are out of scope unless they show a structural problem. That is the reason the modes exist: a structure sent to the code prompt comes back as procedural findings in single files.
 
 ### The code prompt
 
@@ -151,7 +151,7 @@ The script is tolerant when it parses: a non-code answer with no `coverage` list
 ### What is verified live, and what is not
 
 - **Code mode**: the schema was verified against the live API on 2026-11-14 and has been used live since.
-- **Design mode with one image**: one live call on 2026-11-25. HTTP 200 on `gemini-pro-latest` (resolved to `gemini-3.1-pro-preview`) with `--thinking-level low`, the extended schema, and one PNG sent as an `inlineData` part with base64 data. The answer held one coverage item for each of the six dimensions: one said `no_problems_found` and five said `not_assessable`. So the wire format for an image and the extended schema are accepted by the API. Usage on that call: 1,819 prompt tokens, 0 thought tokens, 321 answer tokens.
+- **Design mode with one image**: one live call on 2026-11-25, with the design prompt as it was then. The prompt has since lost one sentence (the line-level scope sentence, now only in `architecture` and `solution`); the prompt in its present form has not run live. HTTP 200 on `gemini-pro-latest` (resolved to `gemini-3.1-pro-preview`) with `--thinking-level low`, the extended schema, and one PNG sent as an `inlineData` part with base64 data. The answer held one coverage item for each of the six dimensions: one said `no_problems_found` and five said `not_assessable`. So the wire format for an image and the extended schema are accepted by the API. Usage on that call: 1,819 prompt tokens, 0 thought tokens, 321 answer tokens.
 - **Not verified by that call: that the model reads the pixels.** The image was a synthetic test card with a red left half and a blue right half, and the answer named those colours on those sides. The requirement text named the same colours, so the answer does not tell a model that saw the image from one that repeated the requirement. A test that settles it uses an image that contradicts the requirement text.
 - **Not run live when this was written**: the `architecture`, `solution` and `product` prompts, JPEG and WEBP images, more than one image, `--context`, and whether the two modes `architecture` and `solution` give usefully different answers on the same material.
 
@@ -191,7 +191,7 @@ Read it as an estimate, never as an invoice:
 - **`--price-in USD --price-out USD`** (per 1 million tokens, both together, flat, no tier) price a model the table does not hold, or a price that has changed. They win over the table and the line says `override`. The lasting fix is a new row in `PRICE_TABLE` and a new `PRICES_AS_OF`.
 - The estimate is not checked against Google's billing.
 - Images are priced through the prompt token count the API reports, at the same input price as text. That Google bills image input at the text input price for every model in the table is not verified.
-- When the API response holds no usage metadata, all counts are 0 and the line shows a cost of 0. Read the usage line next to the cost line.
+- **A response with no token usage gets no number.** When the API response holds no `usageMetadata`, or no `promptTokenCount` in it, the cost line says the price is unknown because the response carried no token usage, and `usd` and `dkk` are `null` with a `reason`. That also holds with `--price-in` and `--price-out`. The usage line still prints its counts as 0, as before.
 
 ### What drives it
 
