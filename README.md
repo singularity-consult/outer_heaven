@@ -15,7 +15,7 @@ A Claude Code plugin that bundles the skills, hooks, and agents for a consistent
 
 - `skills/`: all skills
 - `agents/`: sub-agents
-- `hooks/`: session-start context injection and other hooks
+- `hooks/`: session-start context injection, and a prompt hook that offers a diary entry when the prompt contains "gem status"
 - `docs/diary/`: implementation diaries
 - `docs/insights/`: work-style insights
 
