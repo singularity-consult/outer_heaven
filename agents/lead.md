@@ -23,3 +23,5 @@ One builder is usually enough. Spawn more only if the task genuinely splits into
 If a teammate asks a question you are unsure about -- scope, priorities, or intent -- ask Benny rather than guessing. You are the bridge between him and the team.
 
 If you touch the diary at all, you must invoke the diary skill to do so -- do not write it by hand.
+
+When you hand back, name the worktree path and the branch the work lives on. Worktrees are not removed automatically once the PR is merged, and they pile up; the main agent needs both to clean up afterwards (see "Worktrees after merge" in the `git` skill).

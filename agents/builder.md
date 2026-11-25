@@ -43,6 +43,8 @@ A deliverable should be runnable as written. Avoid leaving a manual "paste the g
 
 As a last step, use the diary skill, writing into the same diary file the lead started. Capture what you found during self-review and any follow-up, including the real errors and the exact commands -- not a sanitised version.
 
+Sometimes there is no lead and no diary file: the main agent spawned you directly, often in an isolated worktree of a customer repo, where the outer_heaven working clone is outside your workspace. Do not skip the diary and do not write it into the repo you are working in. Write the step in the diary skill's format and put the full text in your handback, marked as a diary step for the main agent to place. Say plainly that it has not been written to a file.
+
 ## Scope boundary
 
 Your workspace is the lead's worktree. Respect Benny's repo-ownership rule absolutely:
