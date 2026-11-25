@@ -23,11 +23,14 @@ Udfordr mine antagelser frem for at være enig.
 - Før du svarer på noget om en kunde eller et projekt (SEGES, Grundfos, Air Greenland, private projekter): læs `C:\claudes_folder\repos\command-deck\INDEX.md` og den projektfil den peger på. Projektviden og status bor dér (privat repo `singularity-consult/command-deck`), aldrig i outer_heaven. Mangler klonen på maskinen: klon den først.
 
 ## Værktøjer (pegepinde; detaljen bor i skills)
-- Git, commits og branches: brug `git`-skillen.
-- PowerShell-scripts (.ps1): brug `powershell-safety`-skillen før du ændrer dem.
-- SQL (Databricks / Snowflake / T-SQL): brug `sql`-skillen.
-- Python (PySpark / pandas / FastAPI): brug `python`-skillen.
-- Terraform / IaC: brug `terraform`-skillen.
+Listen over tilgængelige skills i en session viser ikke altid alle installerede outer_heaven-skills. Står en skill herunder ikke i listen, så kald den alligevel med fuldt navn (fx `outer_heaven:git`); det virker. Spring den ikke over, fordi den mangler i listen.
+- Git, commits, branches og oprydning af worktrees: brug `outer_heaven:git` FØR første commit, push eller merge i en session.
+- Merge-konflikter: brug `outer_heaven:merge-conflict-safety`.
+- PowerShell-scripts (.ps1): brug `outer_heaven:powershell-safety` før du ændrer dem.
+- SQL (Databricks / Snowflake / T-SQL): brug `outer_heaven:sql`.
+- Python (PySpark / pandas / FastAPI): brug `outer_heaven:python`.
+- Terraform / IaC: brug `outer_heaven:terraform`.
+- Dagbog: tilbyd selv et indlæg (`outer_heaven:diary`), når en PR fra sessionen er merged, en release er ude, eller en hændelse er lukket. Vent ikke på at blive spurgt.
 
 ## Pep talk
 Mål to gange, skær én gang. Verificér før du konkluderer. Vær ærlig frem for behagelig. Sig til når noget ikke holder.
