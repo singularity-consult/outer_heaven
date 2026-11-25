@@ -1,6 +1,6 @@
 ---
 name: git
-description: Conventions for git in Benny's repos: never add Co-Authored-By or set Claude as commit author, resolve the right author identity per repo (own/Singularity vs SEGES/customer), context-dependent branch naming, and English commit messages. Use this whenever you branch, commit, or write a commit message, not only when explicitly asked to "commit". These conventions are not in your default knowledge and you will get them wrong without consulting this skill.
+description: Conventions for git in Benny's repos: never add Co-Authored-By or set Claude as commit author, resolve the right author identity per repo (own/Singularity vs SEGES/customer), context-dependent branch naming, English commit messages, and cleanup of agent worktrees after a PR is merged. Use this whenever you branch, commit, write a commit message, merge a PR, or remove a worktree, not only when explicitly asked to "commit". These conventions are not in your default knowledge and you will get them wrong without consulting this skill.
 ---
 
 # git
@@ -46,3 +46,12 @@ On a customer repo, work on a branch; do not commit straight to the default bran
 - Commit or push only when Benny asks. Building or editing files is not itself a commit request.
 - Confirm before destructive or hard-to-reverse operations: `git reset --hard`, `git push --force`, branch deletion, history rewrites.
 - For merge conflicts, check `git log main..branch --stat` before resolving so only the branch's real files are kept (a dedicated `merge-conflict-safety` skill covers this in full).
+
+## Worktrees after merge
+
+Agent worktrees (under `.claude/worktrees/` in the repo) are not removed when their PR is merged. Left alone they pile up: one customer repo reached 32, of which 21 belonged to PRs merged weeks earlier.
+
+- **When a PR from the session is merged, offer the cleanup** in one question: remove the worktree, the local branch, and the remote branch. Branch deletion still needs a yes.
+- **Verify before removing, by commit, not by branch name.** PRs are squash-merged, so the branch never becomes an ancestor of `main` and `git branch -d` refuses. The check that works: the worktree's `HEAD` equals the PR's head commit (`gh pr view <n> --json headRefOid`), or is an ancestor of it. Look the PR up by that commit as well as by branch name: an agent often works on a temporary branch (`worktree-agent-...`) whose name matches no PR, and a lookup by name alone files finished work under "only local".
+- **Use `git worktree remove` without `--force`.** It refuses when the worktree has uncommitted or untracked files, which is the safety net. Then `git branch -D` for the local branch.
+- **Leave anything that is not provably merged**: uncommitted files, commits that exist nowhere else, a branch with no PR. List those for Benny instead.

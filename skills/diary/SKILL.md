@@ -19,6 +19,19 @@ All diaries live in the **outer_heaven repo**, under `docs/diary/`, never in the
 
 Diaries about customer work stay at delivery level: name the project and describe what was built, what was decided, and what failed in the process. Keep customer-confidential detail out: data values, secrets, credentials, and proprietary business logic that is not yours to store. When in doubt, leave it out.
 
+Names of people never appear, and that includes colleagues at the customer: write "a colleague", "a reviewer", "the product owner". The same goes for identifiers that point at one person or one resource: user logins, e-mail addresses, run and job ids, tenant and subscription ids, storage account names, and row counts from customer tables.
+
+### Scan before commit
+
+Reading the entry is not enough; a name in a quoted error or a pasted command is easy to miss. Before a diary file is committed, grep it and fix every hit:
+
+- the names and logins of everyone who appeared in the session (colleagues, reviewers, PR authors);
+- long digit runs (run ids, job ids, row counts) and GUIDs;
+- resource names from the customer's cloud (storage accounts, workspaces, key vaults);
+- e-mail addresses.
+
+Report the scan result (what was searched for, how many hits) when you hand the entry over, so Benny can see it was done.
+
 ## Check who can read the diary repo
 
 **`outer_heaven` is a public repo.** Centralizing diaries there is right for the aggregation reasons above, but it means every diary is world-readable under Benny's company name. That is fine for skills, tooling, and customer work kept at delivery level. It is not automatically fine for projects about Benny himself.
@@ -86,6 +99,7 @@ Brief description of the goal and context for this task.
 1. **Implement** the change.
 2. **Update the diary** with the current step.
 3. **Commit together, when asked.** Include the diary file alongside the work it documents. Invoking this skill is not itself a commit request: wait for the user to ask before running `git commit`.
+4. **Ask about the commit; do not leave it hanging.** When the entry is written, end with one question: commit and push it now? An entry nobody asks about stays untracked, and untracked entries do not travel across machines or reach `work-style-insight`. Entries have piled up uncommitted for months this way. If earlier entries are still untracked in `docs/diary/`, say how many, but commit only the ones Benny names: older entries may not have been scanned yet.
 
 A "step" is a logical chunk of work, not necessarily a single commit (for example "wire up the hook", "debug the flaky test").
 
@@ -101,5 +115,14 @@ A "step" is a logical chunk of work, not necessarily a single commit (for exampl
 ## When to activate
 
 Activates proactively during non-trivial work: new features, bug fixes, refactors, research spikes, and at natural session-end moments while the narrative is still fresh.
+
+Offer the entry yourself at these moments; do not wait to be asked. One line is enough ("Skal jeg skrive dagbog for dette?"):
+
+- a PR from the session was merged;
+- a release or deploy the session worked towards went out;
+- an incident was diagnosed and closed (a red environment made green again);
+- Benny writes "gem status" (the plugin's prompt hook also reminds you).
+
+A session that started as a question can still earn an entry. A status check that turns into an incident, a fix, and a merge is non-trivial work even though nobody called it a feature.
 
 Does not activate for one-line fixes, config tweaks, quick questions, or trivial changes that do not warrant narration.
