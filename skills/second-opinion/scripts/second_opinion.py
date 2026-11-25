@@ -32,6 +32,12 @@ KEY_ENV_VAR = "GEMINI_API_KEY"
 # everything not listed here is refused unless --customer-approved is passed.
 OWNED_REPOS = frozenset({"outer_heaven", "command-deck", "datavilla"})
 
+# CLI spellings of GenerationConfig.thinkingConfig.thinkingLevel. The API wants
+# the uppercase enum name. Which levels a model accepts is NOT checked here:
+# the default alias moves between models. What the API does with a level a
+# model does not support (an HTTP error or a silent fallback) is not verified.
+THINKING_LEVELS = ["minimal", "low", "medium", "high", "xhigh"]
+
 SEVERITIES = ["critical", "major", "minor", "nit"]
 VERDICTS = ["approve", "approve_with_changes", "request_changes", "reject"]
 
@@ -222,11 +228,25 @@ def build_user_prompt(
     return "\n\n".join(sections)
 
 
-def build_payload(user_prompt: str, use_schema: bool) -> dict[str, Any]:
-    """Build the generateContent request body."""
+def build_payload(
+    user_prompt: str,
+    use_schema: bool,
+    thinking_level: str | None = None,
+) -> dict[str, Any]:
+    """Build the generateContent request body.
+
+    `thinking_level` is one of THINKING_LEVELS. When it is None no
+    `thinkingConfig` key is sent at all, so the model's own default applies.
+    """
     generation_config: dict[str, Any] = {"responseMimeType": "application/json"}
     if use_schema:
         generation_config["responseSchema"] = RESPONSE_SCHEMA
+    if thinking_level is not None:
+        if thinking_level not in THINKING_LEVELS:
+            raise SecondOpinionError(
+                f"unknown thinking level '{thinking_level}' (choose from: {', '.join(THINKING_LEVELS)})"
+            )
+        generation_config["thinkingConfig"] = {"thinkingLevel": thinking_level.upper()}
     return {
         "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
         "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
@@ -346,6 +366,10 @@ def read_material(diff_path: str | None, files: list[Path]) -> list[tuple[str, s
     return material
 
 
+def _timeout_message(timeout: int) -> str:
+    return f"Gemini did not answer within {timeout}s (raise --timeout)"
+
+
 def call_gemini(model: str, payload: dict[str, Any], api_key: str, timeout: int) -> dict[str, Any]:
     """POST to generateContent. The key goes only in the x-goog-api-key header."""
     url = f"{API_BASE}/{model}:generateContent"
@@ -362,9 +386,14 @@ def call_gemini(model: str, payload: dict[str, Any], api_key: str, timeout: int)
         message = redact(google_error_message(exc.read()), api_key)
         raise SecondOpinionError(f"HTTP {exc.code} from Gemini: {message}") from None
     except urllib.error.URLError as exc:
+        # A timeout while connecting is wrapped: URLError with a TimeoutError
+        # as its reason. Report it like the bare TimeoutError below.
+        if isinstance(exc.reason, TimeoutError):
+            raise SecondOpinionError(_timeout_message(timeout)) from None
         raise SecondOpinionError(f"network error calling Gemini: {redact(str(exc.reason), api_key)}") from None
     except TimeoutError:
-        raise SecondOpinionError(f"Gemini did not answer within {timeout}s (raise --timeout)") from None
+        # Reached when the server accepts the request and then does not answer.
+        raise SecondOpinionError(_timeout_message(timeout)) from None
 
 
 # --------------------------------------------------------------------------
@@ -392,6 +421,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Benny has explicitly approved sending this non-owned material, for this run only",
     )
     parser.add_argument("--model", default=DEFAULT_MODEL, help=f"model id (default: {DEFAULT_MODEL})")
+    parser.add_argument(
+        "--thinking-level",
+        choices=THINKING_LEVELS,
+        default=None,
+        help=(
+            "cap the model's reasoning depth (sent as generationConfig.thinkingConfig.thinkingLevel); "
+            "default: not sent, the model's own default applies. Not validated per model; "
+            "what the API does with a level the model does not support is not verified"
+        ),
+    )
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT_S, help="HTTP timeout in seconds")
     parser.add_argument("--no-schema", action="store_true", help="do not send responseSchema (JSON is still requested)")
     parser.add_argument("--dry-run", action="store_true", help="run the guard and print the request body; no network call")
@@ -420,8 +459,11 @@ def run(args: argparse.Namespace) -> int:
     )
     material = read_material(args.diff, list(args.files))
     user_prompt = build_user_prompt(requirements, material, args.focus)
-    payload = build_payload(user_prompt, use_schema=not args.no_schema)
-    print(f"request: model={args.model} prompt_chars={len(user_prompt)}", file=sys.stderr)
+    payload = build_payload(user_prompt, use_schema=not args.no_schema, thinking_level=args.thinking_level)
+    request_line = f"request: model={args.model} prompt_chars={len(user_prompt)}"
+    if args.thinking_level is not None:
+        request_line += f" thinking_level={args.thinking_level}"
+    print(request_line, file=sys.stderr)
 
     if args.dry_run:
         print(json.dumps(payload, indent=2, ensure_ascii=False))

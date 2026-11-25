@@ -156,6 +156,41 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("(none given)", out.getvalue())
 
+    def _dry_run(self, *extra: str) -> tuple[int, dict, str]:
+        out, err = io.StringIO(), io.StringIO()
+        here = str(Path(__file__).resolve())
+        argv = ["--requirements-text", "r", "--files", here, "--dry-run", *extra]
+        with mock.patch.object(so.urllib.request, "urlopen") as urlopen, \
+                mock.patch.object(so, "get_api_key") as get_key, \
+                redirect_stdout(out), redirect_stderr(err):
+            code = so.main(argv)
+        urlopen.assert_not_called()
+        get_key.assert_not_called()
+        return code, json.loads(out.getvalue()), err.getvalue()
+
+    def test_thinking_level_reaches_dry_run_body(self) -> None:
+        code, body, err = self._dry_run("--thinking-level", "low")
+        self.assertEqual(code, 0)
+        self.assertEqual(body["generationConfig"]["thinkingConfig"], {"thinkingLevel": "LOW"})
+        self.assertIn("thinking_level=low", err)
+
+    def test_no_thinking_level_means_no_thinking_config(self) -> None:
+        code, body, err = self._dry_run()
+        self.assertEqual(code, 0)
+        self.assertNotIn("thinkingConfig", body["generationConfig"])
+        self.assertNotIn("thinking_level", err)
+
+    def test_invalid_thinking_level_rejected_by_argparse(self) -> None:
+        err = io.StringIO()
+        with redirect_stderr(err), self.assertRaises(SystemExit) as ctx:
+            so.parse_args(["--requirements-text", "r", "--thinking-level", "extreme"])
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertIn("invalid choice", err.getvalue())
+
+    def test_uppercase_thinking_level_rejected_by_argparse(self) -> None:
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            so.parse_args(["--requirements-text", "r", "--thinking-level", "LOW"])
+
 
 class ResponseParsingTests(unittest.TestCase):
     def _response(self, text: str, **extra: object) -> dict:
@@ -213,6 +248,48 @@ class ResponseParsingTests(unittest.TestCase):
         self.assertEqual(payload["generationConfig"]["responseMimeType"], "application/json")
         self.assertIn("responseSchema", payload["generationConfig"])
         self.assertNotIn("responseSchema", so.build_payload("p", use_schema=False)["generationConfig"])
+
+    def test_payload_with_thinking_level(self) -> None:
+        for level in so.THINKING_LEVELS:
+            with self.subTest(level=level):
+                config = so.build_payload("p", use_schema=True, thinking_level=level)["generationConfig"]
+                self.assertEqual(config["thinkingConfig"], {"thinkingLevel": level.upper()})
+                self.assertEqual(config["responseMimeType"], "application/json")
+                self.assertIn("responseSchema", config)
+
+    def test_payload_without_thinking_level_has_no_thinking_config(self) -> None:
+        for payload in (
+            so.build_payload("p", use_schema=True),
+            so.build_payload("p", use_schema=True, thinking_level=None),
+        ):
+            self.assertNotIn("thinkingConfig", payload["generationConfig"])
+        self.assertEqual(
+            so.build_payload("p", use_schema=True),
+            so.build_payload("p", use_schema=True, thinking_level=None),
+        )
+
+    def _call_with_urlopen_raising(self, exc: Exception) -> str:
+        with mock.patch.object(so.urllib.request, "urlopen", side_effect=exc):
+            with self.assertRaises(so.SecondOpinionError) as ctx:
+                so.call_gemini("model-x", {}, "NOT-A-REAL-KEY", 7)
+        return str(ctx.exception)
+
+    def test_bare_timeout_gives_timeout_message(self) -> None:
+        message = self._call_with_urlopen_raising(TimeoutError())
+        self.assertEqual(message, "Gemini did not answer within 7s (raise --timeout)")
+
+    def test_timeout_wrapped_in_urlerror_gives_timeout_message(self) -> None:
+        wrapped = so.urllib.error.URLError(TimeoutError("timed out"))
+        message = self._call_with_urlopen_raising(wrapped)
+        self.assertEqual(message, "Gemini did not answer within 7s (raise --timeout)")
+
+    def test_other_urlerror_stays_a_network_error(self) -> None:
+        message = self._call_with_urlopen_raising(so.urllib.error.URLError("connection refused"))
+        self.assertEqual(message, "network error calling Gemini: connection refused")
+
+    def test_payload_rejects_unknown_thinking_level(self) -> None:
+        with self.assertRaises(so.SecondOpinionError):
+            so.build_payload("p", use_schema=True, thinking_level="extreme")
 
 
 if __name__ == "__main__":
