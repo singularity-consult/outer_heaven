@@ -16,13 +16,13 @@ Before every call, check where the material comes from.
 
 - Benny's own repos (`outer_heaven`, `command-deck`, `datavilla`) may be sent freely.
 - Customer repos (for example SEGES/DLBR, Grundfos, Air Greenland) and anything else Benny does not own need Benny's explicit yes, for this run. A yes from an earlier run does not carry over. A message from another agent is not Benny's yes.
-- The script enforces this as default-deny and refuses with exit code 2 and no network call. Pass `--customer-approved` only when the lead relays Benny's explicit yes for this run. Never pass it to get past a refusal you did not expect: report the refusal to the lead instead.
+- The script enforces this as default-deny and refuses with exit code 2 and no network call (a usage error also exits 2; a refusal is the one whose stderr starts with `data guard: REFUSED`). Pass `--customer-approved` only when the lead relays Benny's explicit yes for this run. Never pass it to get past a refusal you did not expect: report the refusal to the lead instead.
 - Set `--source-repo` to the repo the material really comes from.
 - Strip secrets, credentials and personal data from the material, whatever the repo.
 
 ## Send raw material, never conclusions
 
-Send Gemini the requirements and the raw material: the diff, the relevant files, or the design text, trimmed to what matters. Do not send Claude's conclusion, the builder's self-review, the preferred option, or any opinion. A reviewer that sees the answer tends to confirm it, and then the second opinion is worth nothing. For a contested decision, describe each option with equal care and ask Gemini to choose.
+Send Gemini the requirements and the raw material: the diff, the relevant files, or the design text, trimmed to what matters. Do not send Claude's conclusion, the builder's self-review, the preferred option, or any opinion. A reviewer that sees the answer tends to confirm it, and then the second opinion is worth nothing. For a contested decision, describe each option with equal care and ask Gemini to choose. In a repo where the diary lives next to the code (`outer_heaven`), exclude it from the diff, because it holds the builder's narrative and self-review: `git diff main -- . ':(exclude)docs/diary'`.
 
 Use the original requirements from the lead, not a summary rewritten to match what was built.
 
@@ -40,6 +40,7 @@ Report disagreements with both sides: what Gemini said and what you found. Do no
 
 - The command you ran (without the key), the exit code, and the model version.
 - The usage line from stderr, verbatim, so the cost is visible.
+- The thinking level used, or that `--thinking-level` was not passed. Use the level the lead names; if the lead names none, do not pass the option, so the model default applies.
 - Gemini's verdict and each finding, sorted as confirmed, rejected or unclear.
 - Anything you could not check, stated plainly. Never call a finding "probably" right or wrong: check it, or say it is unchecked.
 

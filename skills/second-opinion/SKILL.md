@@ -37,6 +37,8 @@ Send three things, and nothing else:
 
 Never send Claude's conclusion, self-review, chosen option or opinion. A reviewer that sees the answer tends to confirm it. For a contested decision, describe each option with equal care and let Gemini pick.
 
+**Exclude the diary from the diff when it lives next to the code.** In `outer_heaven` the diaries are in `docs/diary/` in the same repo, so a plain branch diff carries the builder's narrative and self-review to Gemini. Leave them out with a pathspec: `git diff main -- . ':(exclude)docs/diary'`.
+
 ## The adversarial prompt
 
 The script holds the default system prompt (`SYSTEM_PROMPT` in `scripts/second_opinion.py`). It tells Gemini to:
@@ -80,6 +82,10 @@ Source: https://aistudio.google.com/docs/terms. Users in the EEA get the Paid-se
 - The account runs on a prepaid balance.
 - **Thinking tokens are billed.** A verified test: a 5-token prompt produced 75 thought tokens. On a real review the ratio is larger: the first live run (a 6,104-token prompt) used 21,254 thought tokens.
 - The script prints usage on every call to stderr: `promptTokenCount`, `thoughtsTokenCount`, `candidatesTokenCount`, `totalTokenCount`, plus the resolved model version. Keep the material trimmed, and do not rerun a review just to "see if it changes its mind".
+- **`--thinking-level` is the lever on thought tokens.** It sends `generationConfig.thinkingConfig.thinkingLevel`, which Google describes as the maximum depth of the model's internal reasoning. Without the option nothing is sent and the model default applies (for `gemini-3.1-pro-preview` the documented default is high). The field name and its values are verified in Google's documentation on 2026-11-25 (API reference for `generateContent`: https://aistudio.google.com/api-reference/generate-content).
+- **Live result (one call, 2026-11-25):** the API accepted `thinkingLevel` `LOW` on `gemini-pro-latest` (resolved to `gemini-3.1-pro-preview`) with HTTP 200, together with `responseSchema`. That call used 4,254 thought tokens on a 15,757-token prompt. This is not a controlled comparison with the 21,254 thought tokens above: the two runs reviewed different material, so the numbers do not measure how much the option saves.
+- **Not tested live:** `minimal`, `medium`, `high` and `xhigh`. What the API does with a level a model does not support (an HTTP error or a silent fallback) is not verified either.
+- A lower level buys fewer thought tokens with a shallower review. When the option is set, the `request:` line on stderr shows `thinking_level=<level>`, so the usage line can be read against it. Say in the hand-back which level a review ran with.
 
 ## Running the script
 
@@ -99,12 +105,30 @@ python skills/second-opinion/scripts/second_opinion.py `
 Bash, reviewing the branch diff from stdin with inline requirements:
 
 ```bash
-git diff main | python skills/second-opinion/scripts/second_opinion.py \
+git diff main -- . ':(exclude)docs/diary' | python skills/second-opinion/scripts/second_opinion.py \
   --diff - \
   --requirements-text "The loader must skip empty files."
 ```
 
+The `':(exclude)docs/diary'` pathspec keeps the diary out of the diff (see "Packaging context"). Drop it in a repo that holds no diary.
+
 Pipe diffs from Bash, not from Windows PowerShell 5.1: PowerShell 5.1 re-encodes text piped into a native command and can turn non-ASCII characters into `?`. The script reads stdin as UTF-8 bytes.
+
+When a pipe is not possible (some agent harnesses refuse a compound git command), do it in two plain commands in Bash: write the diff to a file, then feed that file to stdin and name the repo it came from.
+
+```bash
+git diff main -- . ':(exclude)docs/diary' > /path/outside/the/repo/review.diff
+```
+
+```bash
+python skills/second-opinion/scripts/second_opinion.py \
+  --diff - \
+  --source-repo . \
+  --requirements-text "The loader must skip empty files." \
+  < /path/outside/the/repo/review.diff
+```
+
+`--diff FILE` does not work for such a file: every input file must pass the guard, and a file outside any git repo is refused as unknown provenance. On stdin the material is attributed to `--source-repo` instead, so set that to the repo the diff really came from. Writing the diff file inside the repo would pass the guard, but it leaves an untracked file to clean up.
 
 Options:
 
@@ -114,8 +138,9 @@ Options:
 - `--source-repo PATH`: the repo the material comes from (default: current directory).
 - `--customer-approved`: only after Benny's explicit yes for this run.
 - `--model`, `--timeout` (default 300 s; thinking models can be slow), `--no-schema`.
+- `--thinking-level {minimal,low,medium,high,xhigh}`: cap the reasoning depth, and with it the thought tokens. Default: not sent, so the model default applies. The script does not check the level against the model, because `gemini-pro-latest` moves between models. What the API does with a level the resolved model does not support is not verified. Google's thinking guide lists low, medium and high for `gemini-3.1-pro-preview`; only `low` is tested live. See "Cost".
 - `--dry-run`: run the guard and print the exact request body, with no network call. Use it to check what would be sent.
 
-Exit codes: `0` success (findings JSON on stdout), `1` error (missing key, HTTP error with status and Google's message, unreadable input, invalid answer), `2` refused by the data guard.
+Exit codes: `0` success (findings JSON on stdout), `1` error (missing key, HTTP error with status and Google's message, unreadable input, invalid answer), `2` refused by the data guard, or a usage error from the argument parser (for example an invalid `--thinking-level`). The code alone does not tell the two apart: a guard refusal is the one whose stderr starts with `data guard: REFUSED`.
 
 Tests: `python -m unittest discover -s skills/second-opinion/scripts -v` (no network).
