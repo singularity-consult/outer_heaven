@@ -418,3 +418,52 @@ The review ran at `low`, so its depth is not what a default run gives. One findi
 
 - Levels other than `low` are untested against the live API, and so is the API's answer to a level a model does not support.
 - The reviewer agent type itself has not been spawned as an installed subagent; that is only possible after 0.19.0 is released and installed.
+
+## Step 7: Rebase on the moved main, version becomes 0.20.0
+
+**Author:** builder
+
+### Prompt Context
+
+**Verbatim prompt:** Rebase branchen på main. Konflikter forventes i `.claude-plugin/plugin.json` og muligvis `README.md`. Behold ALT fra main og ALT fra branchen. Versionen skal ende på 0.20.0, fordi 0.19.0 nu tilhører hooken, og reviewer er ny funktionalitet (minor-bump). (The prompt continued with the diary instruction, the test run, the commit rules and the handback list.)
+**Interpretation:** Rebase onto the two new commits on main, keep both sides, bump to 0.20.0, record it here without rewriting the earlier steps, run the tests, commit. No push, merge, tag, release or Gemini call.
+**Inferred intent:** Keep the branch mergeable and make sure the release of this feature gets its own version number, so installed copies cached at 0.19.0 actually receive it.
+
+### What I did
+
+Main had moved two commits. One adds the "gem status" prompt hook and takes 0.19.0 for it; the other is a diary. Before rebasing I ran `git log main..reviewer-gemini-second-opinion --stat` and `git log reviewer-gemini-second-opinion..main --stat` to fix the scope of each side.
+
+`git rebase main` finished with no conflict. Then I set `.claude-plugin/plugin.json` to 0.20.0 in a separate commit and added this step. Wherever Steps 1 to 6 say 0.19.0 for this feature, that was true when written; the released number is 0.20.0.
+
+Ran `python skills/second-opinion/scripts/test_second_opinion.py` after the rebase: `Ran 34 tests`, `OK`.
+
+### Why
+
+Versions are the cache key for remote installs. Two different changes under 0.19.0 would mean copies that already took the hook never fetch the reviewer. A new sub-agent and skill is a minor bump, so 0.20.0.
+
+### What worked
+
+The README merged cleanly: main changed the `hooks/` line in the structure list, the branch added lines in the two alphabetical lists further down. All three are present after the rebase, and `git diff main -- CLAUDE.md hooks` is empty.
+
+### What didn't work
+
+Nothing failed, but the expected conflict in `plugin.json` did not appear, and that is the trap. Both sides made the identical change (0.18.1 to 0.19.0), so git treated the branch's bump as already applied and dropped it silently. Straight after the rebase the branch had no version change against main at all. Merged like that, the feature would have shipped under the hook's version number and not reached installed copies.
+
+### What I learned
+
+An identical edit on both sides is not a conflict to git, even when the two edits mean different things. After a rebase, check the branch's diff against main for the version file, not just the absence of conflict markers.
+
+### What was tricky
+
+The first commit's message still ends with "Bump version to 0.19.0", although after the rebase that commit no longer touches `plugin.json`. I did not reword it; the bump commit and this step carry the correction.
+
+### What warrants review
+
+- `git diff main...HEAD -- .claude-plugin/plugin.json` should show exactly 0.19.0 to 0.20.0.
+- `skills/second-opinion/SKILL.md`, `agents/reviewer.md` and `README.md` do not mention a version number (checked with grep for `0.19` and `0.20`), so they are unchanged.
+
+### Future work
+
+- Decide whether to reword the first commit's message before merge.
+- Tag and release 0.20.0 after merge. Not done here.
+- The last item under Step 6 now reads: the reviewer agent type can be spawned as an installed subagent only after 0.20.0 is released and installed.
