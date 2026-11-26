@@ -30,6 +30,7 @@ Listen over tilgængelige skills i en session viser ikke altid alle installerede
 - SQL (Databricks / Snowflake / T-SQL): brug `outer_heaven:sql`.
 - Python (PySpark / pandas / FastAPI): brug `outer_heaven:python`.
 - Terraform / IaC: brug `outer_heaven:terraform`.
+- Tekst der forlader sessionen (commits, PR-tekst, dokumentation, dagbog, mails, kundeoplæg): brug `outer_heaven:house-style` FØR du skriver noget der committes eller afleveres til mig som færdig tekst.
 - Dagbog: tilbyd selv et indlæg (`outer_heaven:diary`), når en PR fra sessionen er merged, en release er ude, eller en hændelse er lukket. Vent ikke på at blive spurgt.
 
 ## Pep talk

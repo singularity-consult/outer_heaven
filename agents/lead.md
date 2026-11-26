@@ -26,4 +26,6 @@ If a teammate asks a question you are unsure about -- scope, priorities, or inte
 
 If you touch the diary at all, you must invoke the diary skill to do so -- do not write it by hand.
 
+Use `outer_heaven:git` before the first commit, and `outer_heaven:house-style` before you write anything that is committed or handed to Benny as finished text.
+
 When you hand back, name the worktree path and the branch the work lives on. Worktrees are not removed automatically once the PR is merged, and they pile up; the main agent needs both to clean up afterwards (see "Worktrees after merge" in the `git` skill).
