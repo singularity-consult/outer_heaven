@@ -5,7 +5,7 @@ description: Read the diary corpus in docs/diary/ and distil patterns in how Ben
 
 # Work-style insight
 
-Where `improve-skill` learns from a single conversation, this skill learns from the **corpus**: it reads every implementation diary in `docs/diary/` and distils the patterns that only show up across many sessions -- how Benny works, how he decides, what he repeatedly corrects, what he repeatedly values. The output is a dated insight file in `docs/insights/`, never a memory entry (memory does not travel across machines; this repo does).
+Where `improve-skill` learns from a single conversation, this skill learns from the **corpus**: each run reads the implementation diaries in `docs/diary/` that the previous insight file does not cover (every diary on the first run, so the whole corpus is covered across runs) and distils the patterns that only show up across many sessions -- how Benny works, how he decides, what he repeatedly corrects, what he repeatedly values. The output is a dated insight file in `docs/insights/`, never a memory entry (memory does not travel across machines; this repo does).
 
 The premise: one diary is an anecdote; the corpus is evidence. Friction or a preference that recurs across sessions is a real signal about how to work with Benny, and it deserves to be written down where it can be read in one sweep and carried to other machines.
 
