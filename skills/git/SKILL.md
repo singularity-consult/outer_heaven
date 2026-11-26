@@ -23,7 +23,7 @@ Commit author identity (set per repo) is not the same as which account `gh` acts
 
 - **Releases, PRs, and repo creation on a singularity-consult repo need the singularity-consult account active.** Switch first: `gh auth switch -u singularity-consult` (and back with `gh auth switch -u bechseges` for SEGES work). Both accounts can be logged in at once.
 - A failing `gh release create` / `gh pr create` that says `"workflow" scope may be required` is usually **not** a scope problem; it is the active account lacking access to that repo. Check `gh auth status` before chasing scopes.
-- Plain `git push` does not have this problem: it uses the per-path stored credential (Git Credential Manager with `credential.useHttpPath=true`), so it pushes as the right account without a prompt. This is why the improve-skill flow avoids `gh pr create` and hands back a compare URL.
+- Plain `git push` does not have this problem: it uses the per-path stored credential (Git Credential Manager with `credential.useHttpPath=true`), so it pushes as the right account without a prompt. This is why the improve-skill flow pushes without switching and switches account only around its `gh` calls.
 
 ## Branch naming
 
@@ -52,6 +52,6 @@ On a customer repo, work on a branch; do not commit straight to the default bran
 Agent worktrees (under `.claude/worktrees/` in the repo) are not removed when their PR is merged. Left alone they pile up: one customer repo reached 32, of which 21 belonged to PRs merged weeks earlier.
 
 - **When a PR from the session is merged, offer the cleanup** in one question: remove the worktree, the local branch, and the remote branch. Branch deletion still needs a yes.
-- **Verify before removing, by commit, not by branch name.** PRs are squash-merged, so the branch never becomes an ancestor of `main` and `git branch -d` refuses. The check that works: the worktree's `HEAD` equals the PR's head commit (`gh pr view <n> --json headRefOid`), or is an ancestor of it. Look the PR up by that commit as well as by branch name: an agent often works on a temporary branch (`worktree-agent-...`) whose name matches no PR, and a lookup by name alone files finished work under "only local".
+- **Verify before removing, by commit, not by branch name.** Most PRs are squash-merged (the improve-skill flow in outer_heaven uses a merge commit instead), and after a squash the branch never becomes an ancestor of `main` and `git branch -d` refuses. The check that works: the worktree's `HEAD` equals the PR's head commit (`gh pr view <n> --json headRefOid`), or is an ancestor of it. Look the PR up by that commit as well as by branch name: an agent often works on a temporary branch (`worktree-agent-...`) whose name matches no PR, and a lookup by name alone files finished work under "only local".
 - **Use `git worktree remove` without `--force`.** It refuses when the worktree has uncommitted or untracked files, which is the safety net. Then `git branch -D` for the local branch.
 - **Leave anything that is not provably merged**: uncommitted files, commits that exist nowhere else, a branch with no PR. List those for Benny instead.

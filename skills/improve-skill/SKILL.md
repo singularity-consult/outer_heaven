@@ -7,7 +7,7 @@ description: Review the current conversation for outer_heaven skills that could 
 
 A skill for incrementally improving other outer_heaven skills based on what just happened in the current conversation. The premise: every real session is a free user study. If a skill underperformed -- gave incomplete advice, missed something Benny had to ask for manually, did not trigger when it should have -- that is signal worth turning into a concrete improvement.
 
-This skill harvests that signal and ships it back to the `outer_heaven` repo (https://github.com/singularity-consult/outer_heaven) as a branch you push, then a PR Benny opens and merges.
+This skill harvests that signal and ships it back to the `outer_heaven` repo (https://github.com/singularity-consult/outer_heaven) as a branch you push and a PR you open. Merge, tag and release follow only on Benny's yes.
 
 ## When to use
 
@@ -92,28 +92,87 @@ Follow the repo conventions in `C:\claudes_folder\repos\outer_heaven\CLAUDE.md`:
 
 - **README.md:** add or update the one-line entry (skills under "Available skills", sub-agents under "Available sub-agents"), alphabetical, in the same commit.
 - **Version bump** in `.claude-plugin/plugin.json`: a change to existing functionality is a **patch** bump; a new skill or sub-agent is a **minor** bump.
-- **Git tag** `vX.Y.Z` on the version-bump commit.
+- **No git tag on the branch.** The tag `vX.Y.Z` goes on the merge commit on `main`, after merge (Step 5).
 
 ## Step 5: Self-review, then ship
 
-This is a lightweight flow: branch, self-review, push, hand Benny the PR URL.
+This is a lightweight flow: branch, self-review, push, open the PR, then ask Benny one question about merge, tag and release.
 
 1. **Self-review the diff** before committing. Read `git diff` end to end. Check: does the edit generalise to *every future invocation* of the skill, not just this conversation? Is anything left half-changed? Does the description still match the body?
 2. **Commit** using the [[git]] skill's conventions (commit subject and body in English; never Co-Authored-By or Claude as author; identity in this repo is `singularity-consult <benny@singularityconsult.dk>`, already set locally). One commit per invocation is fine even when several skills are touched.
-3. **Push the branch and the tag.** Push works as singularity-consult via the stored credential; no login prompt.
+3. **Push the branch, and only the branch.** No tag is set or pushed here. Push works as singularity-consult via the stored credential; no login prompt.
 
    ```bash
    git -C C:/claudes_folder/repos/outer_heaven push -u origin improve-<slug>
-   git -C C:/claudes_folder/repos/outer_heaven push origin vX.Y.Z
    ```
 
-4. **Do not use `gh` to open the PR.** On this machine `gh` is authenticated as `bechseges`, who has no access to the singularity-consult repo, so `gh pr create` fails. Instead, give Benny the compare URL so he opens and merges the PR in the browser as singularity-consult:
+4. **Open the PR with `gh`.** On this machine `gh` defaults to `bechseges`, who has no access to the singularity-consult repo (see the [[git]] skill), so switch account first and switch back afterwards, **also when PR creation fails**:
+
+   ```bash
+   gh auth switch -u singularity-consult
+   gh pr create --base main \
+     --repo singularity-consult/outer_heaven \
+     --head improve-<slug> \
+     --title "<title>" --body-file <file>
+   gh auth switch -u bechseges
+   ```
+
+   The same switch-and-switch-back wraps the later `gh pr merge` and `gh release create`. Only if `gh` fails, fall back to the compare URL for Benny to open in the browser as singularity-consult:
 
    `https://github.com/singularity-consult/outer_heaven/compare/main...improve-<slug>`
 
-   (If `gh` has been set up with the singularity-consult account via `gh auth switch -u singularity-consult`, opening the PR with `gh pr create` is fine too. Default to the URL.)
+5. **Report the PR URL and end with one question:** merge, tag and release now? Merge, tag and release need Benny's yes; never do them on your own. Asking is not optional: the question is what keeps the tag step from being forgotten after merge.
 
-**PR body shape** (paste into the web form). The framing is "findings from a conversation", not "feature work":
+   **On a yes**, in this order:
+
+   1. **Fetch and check the version.** Two branches have in practice bumped to the same number twice, so the number is checked against `main` just before merge.
+
+      ```bash
+      git -C C:/claudes_folder/repos/outer_heaven fetch origin
+      git -C C:/claudes_folder/repos/outer_heaven grep -h \
+        '"version"' origin/main -- .claude-plugin/plugin.json
+      git -C C:/claudes_folder/repos/outer_heaven ls-remote \
+        --tags origin
+      ```
+
+      (In PowerShell `git show origin/main:.claude-plugin/plugin.json` shows the same; Git Bash rewrites that `rev:path` argument and the command fails.)
+
+      - If the branch's number is already the version on `origin/main`, or already exists as a tag, another branch merged first. Correct the bump to the next free number above the version on `origin/main` in a **new commit** (never amend), push, and only then merge.
+      - **A version on `main` with no matching tag is an error state.** If the version on `origin/main` has no `vX.Y.Z` in the `ls-remote` output, name it to Benny before going on; do not tag it yourself or merge past it in silence.
+
+   2. **Merge with a merge commit**, not squash, and read back the merge commit:
+
+      ```bash
+      gh auth switch -u singularity-consult
+      gh pr merge <number> --merge \
+        --repo singularity-consult/outer_heaven
+      gh pr view <number> \
+        --repo singularity-consult/outer_heaven \
+        --json mergeCommit -q .mergeCommit.oid
+      ```
+
+   3. **Tag the merge commit on `main`** and push the tag:
+
+      ```bash
+      git -C C:/claudes_folder/repos/outer_heaven fetch origin
+      git -C C:/claudes_folder/repos/outer_heaven tag \
+        vX.Y.Z <merge-commit>
+      git -C C:/claudes_folder/repos/outer_heaven push \
+        origin vX.Y.Z
+      ```
+
+   4. **Create the GitHub release** from that tag, then switch back, also when a step above failed:
+
+      ```bash
+      gh release create vX.Y.Z \
+        --repo singularity-consult/outer_heaven \
+        --title "vX.Y.Z" --notes "<what changed>"
+      gh auth switch -u bechseges
+      ```
+
+   **On a no**, report the PR URL and say plainly that merge, tag and release are still open.
+
+**PR body shape** (pass it to `gh pr create`). No "Generated with Claude Code" line and no Co-Authored-By. The framing is "findings from a conversation", not "feature work":
 
 ```markdown
 ## What was observed
@@ -129,7 +188,7 @@ This is a lightweight flow: branch, self-review, push, hand Benny the PR URL.
 <the reasoning, so a future reader can judge whether the change still makes sense>
 ```
 
-Report the branch name and compare URL back when done. Merging, the version-bump review, and creating the GitHub release are Benny's call.
+When done, report the branch name, the PR URL and where it stopped: merged, tagged and released, or still open. Whether to merge, tag and release is Benny's call; the skill asks, it does not decide.
 
 ## Notes on tone
 
@@ -137,4 +196,4 @@ Report the branch name and compare URL back when done. Merging, the version-bump
 - Generalise from the example. The change affects every future invocation of the skill -- write it for that universe, not just this conversation.
 - Keep edits surgical. Big rewrites belong in a `docs/insights/` note first.
 - Do not pad. If there is one finding, the diff has one bullet under "What changed". That is fine.
-- Never assume the change reached the installed copies. Without a version bump, remote installs stay cached on the old version -- bump and tag every time.
+- Never assume the change reached the installed copies. Without a version bump, remote installs stay cached on the old version -- bump on the branch and tag after merge, every time.

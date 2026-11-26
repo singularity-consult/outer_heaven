@@ -151,7 +151,7 @@ Keep both lists tight. A pattern with no evidence does not go in. A suggestion t
 
 ## Step 5: Ship it
 
-Commit and push using the [[git]] skill's conventions (English commit message; identity `singularity-consult <benny@singularityconsult.dk>`, already set locally; never Co-Authored-By or Claude as author). Adding an insight file is content, not new plugin functionality, so it does **not** need a version bump -- insight files are artifacts, not capability. Push to `main` (or, if Benny prefers review, a kebab-case dash-sentence branch with no prefix, then the compare URL: `https://github.com/singularity-consult/outer_heaven/compare/main...<branch>`).
+Commit and push using the [[git]] skill's conventions (English commit message; identity `singularity-consult <benny@singularityconsult.dk>`, already set locally; never Co-Authored-By or Claude as author). Adding an insight file is content, not new plugin functionality, so it does **not** need a version bump -- insight files are artifacts, not capability. Push to `main` (or, if Benny prefers review, a kebab-case dash-sentence branch with no prefix, then a PR opened the way Step 5 of [[improve-skill]] opens one).
 
 Report the file path back, summarise the headline patterns in two or three lines, and name any suggestion worth acting on now. Whether to act on a suggestion is Benny's call.
 
