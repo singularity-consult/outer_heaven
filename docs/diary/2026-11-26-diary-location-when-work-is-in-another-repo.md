@@ -118,3 +118,55 @@ Read the new lead paragraph next to the builder paragraph and check they give th
 ### Future work
 
 The plugin version is not bumped, so installed copies do not get the new text until a bump. The two reported sentences are a decision for the product owner.
+
+## Step 3: Project name instead of repo name, and three imprecise sentences
+
+**Author:** builder
+
+### Prompt Context
+
+**Verbatim prompt:** (from the lead; the other findings, the hard limits, and the diary, git and reporting instructions are left out)
+
+> ## C. Follow-up to the previous finding on this branch
+> - `skills/diary/SKILL.md` line 101 (working loop item 3, changed in commit 24bc457): when the work is in another repo, the diary entry refers to the project name at delivery level plus the commit hash, NOT the repo name. Reason to state: outer_heaven is public and a customer repo's name is customer data. For work in Benny's own repos the repo name may be given.
+> - Three imprecise sentences, fix each minimally WITHOUT weakening the data-protection rule:
+>   - the bold heading "Commit together" in `skills/diary/SKILL.md` line 101 now sits above a two-commit case;
+>   - `skills/diary/SKILL.md` line 16 says to write into the working clone and names the main path, while a lead working on outer_heaven writes into a worktree of that clone (same repo); keep the "not the installed plugin copy" point;
+>   - `agents/builder.md` line 34 "is committed to this repo" is only true when the work is in outer_heaven; the diary always ends up committed to outer_heaven, which is public, so the rule holds either way.
+>   The sections "Customer confidentiality" (apart from nothing), "Scan before commit" and "Check who can read the diary repo" in the diary skill stay byte-identical.
+
+**Interpretation:** Three sentence-level edits in two files; one of them replaces what Step 2 wrote in working loop item 3.
+
+**Inferred intent:** The rule written in Step 2 told an agent to put a customer repo's name into a public diary. That is the leak the confidentiality section exists to stop.
+
+### What I did
+
+In `skills/diary/SKILL.md` the heading of working loop item 3 became "Commit with the work, when asked", and its two-repo sentence now refers to the work by project name at delivery level plus commit hash, with the reason and the exception for Benny's own repos. The bullet on where to write now allows a worktree of the working clone when the work is in outer_heaven and still rules out the installed plugin copy. In `agents/builder.md` "is committed to this repo" became "always ends up committed to outer_heaven, which is public, wherever the work itself is". The work is commit `bcb08b1`.
+
+### Why
+
+"And repo" in Step 2 was my own reading of the confidentiality section: it does not list repo names, so I took them as allowed. The product owner read it the other way, and for a public repo the stricter reading is the right default.
+
+### What worked
+
+`git diff -U0` on `skills/diary/SKILL.md` shows two hunks, at the where-to-write bullet and at working loop item 3. The three protected sections lie between them and are untouched.
+
+### What didn't work
+
+Nothing failed in this step.
+
+### What I learned
+
+When a rule in a public repo is silent on a kind of identifier, silence is not permission. Step 2 flagged the question under "What was tricky" and still shipped the looser reading; flagging it was right, resolving it myself was not.
+
+### What was tricky
+
+The builder sentence had to stay a reason for the real-data rule, not become a second rule. Naming outer_heaven and that it is public makes the reason stronger in both cases without adding an instruction.
+
+### What warrants review
+
+That the new item 3 does not weaken anything: it removes the repo name for work outside Benny's own repos and adds nothing a diary may now contain. `agents/lead.md` was not changed; its diary sentences do not mention how the work is referred to.
+
+### Future work
+
+None beyond the version bump already noted in Step 2.
