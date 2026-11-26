@@ -239,3 +239,64 @@ The design and product prompts in their present form: `python skills/second-opin
 ### Future work
 
 The design prompt in its present form has not run live. The call that tests whether the model reads the image (Step 3) would cover it.
+
+## Step 5: The architecture review in the new mode, and what it showed
+
+**Author:** lead
+
+### Prompt Context
+
+**Verbatim prompt:** From the main agent's brief: "(a) one architecture call on the outer_heaven structure with the same material and requirements as today's call, so the answers can be compared directly." and "The architecture answer from (a) must be verified finding by finding against the files (via `outer_heaven:reviewer`) and reported to me with status confirmed, rejected or unclear."
+**Interpretation:** Run exactly one call in `architecture` mode on the same requirements, focus and files as the earlier call, with the skill overview on the new `--context` channel, and have the reviewer check every finding and every coverage item against the files.
+**Inferred intent:** Get the architecture answer the owner asked for, and learn whether the mode changes the kind of answer.
+
+### What I did
+
+Spawned the reviewer with the original requirements, the focus text of the earlier call and the list of 14 files, and nothing of my own. The material came from the main checkout at the commit `main` stands on, not from this branch, so that the files matched the earlier call and did not describe the new modes. The reviewer ran one call on the model default, with no thinking level: 19,894 prompt, 12,776 thought and 2,384 answer tokens, estimated at 0.2217 USD or 1.51 DKK by the script's own cost line. The earlier call on the same input used 19,271, 12,632 and 982 tokens, which the same table puts at 0.2019 USD.
+
+The answer had six findings and a coverage list with all eight dimensions. The reviewer's check of each:
+
+- Agent prompts place the diary in the worktree (critical): confirmed as a contradiction between the lead prompt and the diary skill for the case of a lead working in a customer repo. The claim that this forces diaries into customer repos was rejected, because the diary skill forbids it. Whether it has ever happened is not checked.
+- Diary commit tied to the feature commit across two repos (major): confirmed as a gap in the wording. The claim that git commands will fail is not checked.
+- `improve-skill` pushes the version tag before the merge (major): the order is confirmed. The claimed breakage has not occurred: every local tag is reachable from `main`.
+- `work-style-insight` reads the whole diary corpus in one sweep (major): confirmed, and stronger than stated. The corpus is 71 files and about 1.6 MB, which is already more than one read holds.
+- "Never call anything probable" appears in the core profile and in two agent prompts (minor): the duplication is confirmed, the suggested removal was rejected. The reviewer, a spawned sub-agent, found no core profile text in its own context.
+- `CLAUDE.md` says project status stays in memory (minor): confirmed, with two more places Gemini did not name.
+
+### Why
+
+One call on identical input is the cheapest test of the question the earlier call left open: was the code prompt the reason for the procedural answer.
+
+### What worked
+
+The mode gave a different kind of answer. The earlier call gave four procedural findings inside single skills. This one gave six findings tied to a named goal and a quote, four of them about relations between components. Only one earlier finding came back (the tag order). The `evidence` field made the check fast: every quote could be looked up. The `--context` channel labelled the overview as context, where the earlier call had to label it as a diff.
+
+The coverage list did what it was built for. It showed that the two dimensions marked "no problems found", layering and responsibilities, rested on assertion. The reviewer found overlaps between the core profile and two skills that the "clean layering" claim does not survive, and marked "operable" as unbacked because nothing was run.
+
+### What didn't work
+
+The reviewer was cut off by a usage limit right after the call had run and before any verification. The saved answer on disk made it possible to resume without paying for a second call. From the reviewer's last line alone it looked as if the call had not run; the file timestamps showed that it had.
+
+The mode did not fully answer the focus. The role split got praise and no analysis. "What is missing" got no answer: the one finding under `gaps` is about an order of steps, not about a missing thing. Scaling was answered for diaries only, not for skills or machines. One sample each: this is an observation of two calls, not a measured effect of the prompt.
+
+The image test proved less than planned. The call confirmed that the API accepts `inlineData` with base64 data together with the schema. It did not prove that the model read the pixels, because the requirement text named the same colours as the image. A test image that contradicts its requirement text would settle it; the brief allowed one image call and it was used.
+
+The reviewer could not run git against the main checkout from its isolated worktree. It compared blob hashes of the 14 sent files with the commit instead.
+
+### What I learned
+
+A missing answer shows up as weak coverage items and not as an error. Without the coverage list the summary's praise for layering and role split would have read as a pass, as it did in the earlier call.
+
+A sub-agent's own context is evidence about the platform. The finding about the duplicated rule could only be judged because the reviewer looked at what it had been given itself.
+
+### What was tricky
+
+Keeping the comparison clean. The branch changes three of the 14 files, so the material had to come from the main checkout while the script ran from the branch.
+
+### What warrants review
+
+The six findings are decisions for the owner, not changes on this branch; none of them was acted on here. The reviewer's rejection of the fix for the duplicated rule rests on one observed spawn.
+
+### Future work
+
+Decide on the confirmed findings one at a time. Run one image call with a contradicting test image before the design mode is trusted with a real screen. The architecture and solution prompts have not been compared, and the solution and product prompts have not run live.
