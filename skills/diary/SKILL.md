@@ -28,7 +28,11 @@ Reading the entry is not enough; a name in a quoted error or a pasted command is
 - the names and logins of everyone who appeared in the session (colleagues, reviewers, PR authors);
 - long digit runs (run ids, job ids, row counts) and GUIDs;
 - resource names from the customer's cloud (storage accounts, workspaces, key vaults);
-- e-mail addresses.
+- e-mail addresses;
+- secrets: passwords, connection strings, tokens, API keys and SAS URLs. Search for the words (`password`, `pwd`, `secret`, `token`, `key=`, `AccountKey`, `sig=`) and for every secret value that appeared in the session, including its recognisable prefix;
+- internal network detail: IP addresses, and host and port pairs.
+
+A diary may say that a secret leaked and how it was found. It never quotes the secret, a part of it, or the search pattern that was built from it. An entry about redacting a password once quoted that password in a public repo, and the history had to be rewritten.
 
 Report the scan result (what was searched for, how many hits) when you hand the entry over, so Benny can see it was done.
 
