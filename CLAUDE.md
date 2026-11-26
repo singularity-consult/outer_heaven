@@ -7,7 +7,7 @@ This repo holds workflow capabilities and collaboration improvements only. It do
 ## What lives here, and what does not
 
 - IN: skills, hooks, agents, and the diary/insight artifacts that should travel across machines.
-- OUT: project status and knowledge (stays in memory), and sensitive personal **data** -- values, amounts, balances, account identifiers, wallet addresses, credentials, names of people, and anything about health or family. None of it ever enters this repo.
+- OUT: project status and knowledge (lives in command-deck, the private repo `singularity-consult/command-deck`), and sensitive personal **data** -- values, amounts, balances, account identifiers, wallet addresses, credentials, names of people, and anything about health or family. None of it ever enters this repo.
 - Customer repos hold only their solutions. No agent data is ever committed to a customer repo. Diaries about customer work stay at delivery level (name the project, keep customer-confidential detail out).
 
 ## This repo is public
@@ -44,4 +44,4 @@ Bump the version in `.claude-plugin/plugin.json` after any change that should re
 - New functionality (a new skill, sub-agent, or hook) is a minor bump.
 - Changes to existing functionality are a patch bump.
 
-Each version should also get a git tag (for example `v0.1.0`) on the version-bump commit, pushed, with a GitHub release.
+Each version should also get a git tag (for example `v0.1.0`) on the merge commit on `main`, set after the PR is merged, pushed, with a GitHub release. A tag is never put on the branch before the merge.

@@ -77,6 +77,6 @@ A positive claim in the summary counts only when something backs it: a coverage 
 - Gemini's verdict and each finding, sorted as confirmed, rejected or unclear.
 - In a non-code mode: whether the focus was answered, the coverage list, and which positive claims are backed and which are not.
 - The images that were sent, and for a synthetic image how it was made.
-- Anything you could not check, stated plainly. Never call a finding "probably" right or wrong: check it, or say it is unchecked.
+- Anything you could not check, stated plainly. This holds for everything in your report, not only the findings: never call anything "probably" right or wrong. Check it, or say it is unchecked, so the lead can tell what was measured from what is unverified.
 
 The API key is never printed, logged, or written into any file, diary or message.

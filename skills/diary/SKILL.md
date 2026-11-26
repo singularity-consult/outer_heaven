@@ -13,7 +13,7 @@ All diaries live in the **outer_heaven repo**, under `docs/diary/`, never in the
 
 - This is deliberate. Centralizing diaries in one synced repo means they travel across machines via git and can be read in a single sweep by the `work-style-insight` skill. Diaries scattered per project cannot be aggregated.
 - It keeps customer repos clean: never write a diary into a customer's repo.
-- Write into the git **working clone** (the one you commit and push from), not the installed plugin copy. On this machine the working clone is `C:\claudes_folder\repos\outer_heaven`; the path is environment-specific and recorded in memory (`project-outer-heaven`). On a machine where it differs, locate the working clone first, and if you cannot find it, ask rather than writing elsewhere.
+- Write into the git **working clone** (the one you commit and push from) or, when the work itself is in outer_heaven, a worktree of that clone, which is the same repo; never the installed plugin copy. On this machine the working clone is `C:\claudes_folder\repos\outer_heaven`; the path is environment-specific and recorded in memory (`project-outer-heaven`). On a machine where it differs, locate the working clone first, and if you cannot find it, ask rather than writing elsewhere.
 
 ## Customer confidentiality
 
@@ -104,7 +104,7 @@ Brief description of the goal and context for this task.
 
 1. **Implement** the change.
 2. **Update the diary** with the current step.
-3. **Commit together, when asked.** Include the diary file alongside the work it documents. Invoking this skill is not itself a commit request: wait for the user to ask before running `git commit`.
+3. **Commit with the work, when asked.** When the diary and the work are in the same repo, include the diary file alongside the work it documents in one commit. When they are in different repos, that is two commits, one in each repo, and the diary entry refers to the work by the project name at delivery level plus the commit hash, not by the repo name: outer_heaven is public, and a customer repo's name is customer data. For work in Benny's own repos the repo name may be given. Invoking this skill is not itself a commit request: wait for the user to ask before running `git commit`.
 4. **Ask about the commit; do not leave it hanging.** When the entry is written, end with one question: commit and push it now? An entry nobody asks about stays untracked, and untracked entries do not travel across machines or reach `work-style-insight`. Entries have piled up uncommitted for months this way. If earlier entries are still untracked in `docs/diary/`, say how many, but commit only the ones Benny names: older entries may not have been scanned yet.
 
 A "step" is a logical chunk of work, not necessarily a single commit (for example "wire up the hook", "debug the flaky test").
