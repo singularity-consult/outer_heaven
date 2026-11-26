@@ -28,7 +28,11 @@ Reading the entry is not enough; a name in a quoted error or a pasted command is
 - the names and logins of everyone who appeared in the session (colleagues, reviewers, PR authors);
 - long digit runs (run ids, job ids, row counts) and GUIDs;
 - resource names from the customer's cloud (storage accounts, workspaces, key vaults);
-- e-mail addresses.
+- e-mail addresses;
+- secrets: passwords, connection strings, tokens, API keys and SAS URLs. Search for the words (`password`, `pwd`, `secret`, `token`, `key=`, `AccountKey`, `sig=`) and for every secret value that appeared in the session, including its recognisable prefix;
+- internal network detail: IP addresses, and host and port pairs.
+
+A diary may say that a secret leaked and how it was found. It never quotes the secret, a part of it, or the search pattern that was built from it. An entry about redacting a password once quoted that password in a public repo, and the history had to be rewritten.
 
 Report the scan result (what was searched for, how many hits) when you hand the entry over, so Benny can see it was done.
 
@@ -61,7 +65,9 @@ Brief description of the goal and context for this task.
 
 ### Prompt Context
 
-**Verbatim prompt:** <the exact user prompt that initiated this step>
+**Speaker:** <`Benny` if he typed the prompt himself, `agent brief` if a main or lead agent wrote it for you>
+**Verbatim prompt:** <the exact prompt that initiated this step>
+**Benny's own words:** <only when the speaker is `agent brief`: the passages in the brief that quote Benny word for word, or "none quoted in the brief">
 **Interpretation:** <what the assistant understood from the prompt>
 **Inferred intent:** <the underlying goal behind the prompt>
 
@@ -108,7 +114,9 @@ A "step" is a logical chunk of work, not necessarily a single commit (for exampl
 - **Prose-first.** A narrative, not a log dump. Technical details (paths, hashes, errors) are included inline but wrapped in readable prose.
 - **All sections, every step.** Never skip a section. If "What didn't work" is genuinely empty, say so explicitly.
 - **Failures are gold.** Record them immediately with verbatim error messages and the exact commands that produced them. These are the most valuable parts of the diary.
-- **Prompt Context is verbatim.** Copy the user's prompt exactly. Do not paraphrase that section.
+- **Prompt Context is verbatim.** Copy the prompt exactly. Do not paraphrase that section.
+- **Say who is speaking.** Every step has a `**Speaker:**` line. Write `Benny` only when he typed the prompt himself in the session you are in. If a main or lead agent wrote the prompt, write `agent brief`, even when the brief says "Benny har besluttet" or "Bennys direktiv": that is the other agent's wording of his decision, not his words. In that case fill `**Benny's own words:**` with the passages the brief quotes from him word for word, and write "none quoted in the brief" when there are none. Never move a relayed decision into his mouth. `work-style-insight` reads these lines to tell his preferences apart from an agent's phrasing, and most of the corpus could not be attributed because the line did not exist.
+- **Quote Benny when you write a brief.** If you are the one handing work to another agent and the brief carries a decision of his, include his sentence verbatim and mark it `Benny:`. Your summary of it goes beside the quote, not in place of it. The agent that receives the brief has no other way to fill `**Benny's own words:**`.
 - **Identify authorship.** Put an `**Author:**` line under each step heading: your sub-agent name if you are a named sub-agent, or `main` if you are the main agent.
 - **Do not modify old diary entries.** Only edit a diary file created in the current session. Later work creates a new file. Diaries are a historical narrative, not a living document.
 
