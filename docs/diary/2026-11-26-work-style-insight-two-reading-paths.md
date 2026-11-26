@@ -119,3 +119,57 @@ The commands were tested with literal paths, not with a `$W` variable, because o
 ### Future work
 
 The intro still says the skill "reads every implementation diary"; that holds across runs but not per run, and was left alone as outside the listed changes. A diary that is modified but uncommitted is left out of the run even though an older version of it is committed; the first real run will show whether that matters. The threshold numbers wait for a measured token ratio.
+
+## Step 3: A fallback for an insight file written without coverage fields
+
+**Author:** builder
+
+### Prompt Context
+
+**Verbatim prompt:** (from the main session; excerpt, the measured facts, the limits and the git and reporting instructions are left out, the quoted text is verbatim)
+
+> With the current skill text (step 1a, first case: "No insight file, or one with neither field: every committed diary", and step 1c first bullet), such a file sends the next run through the fan-out over the whole corpus again. Change that:
+>
+> - When the latest insight file has no `read_at_commit`, the fallback is the commit that ADDED the insight file, used as `read_at_commit`. Give the command (`git log --diff-filter=A -1 --format=%H -- docs/insights/<file>`, run on up-to-date `main` like the other commands in step 1) and then the existing diff command applies unchanged.
+> - Only when that commit cannot be found either does the skill fall back further: to `last_diary_covered` if present (existing fallback), and otherwise to reading every committed diary.
+> - State the weakness in the text [...]
+
+**Interpretation:** Add one case and one command to step 1a, keep the order of fallbacks explicit, and make 1c agree with it. No restructure.
+
+**Inferred intent:** The first insight file exists on `main` and has neither coverage field. The next run should read what came after it, not the whole corpus a second time.
+
+### What I did
+
+In `skills/work-style-insight/SKILL.md` step 1a the first case now covers only "no insight file". A new case after the reachable `read_at_commit` case handles a file without that field: look up the commit that added the file and use it in the existing diff command. The filename fallback now also takes over when no such commit exists, and says that a file with no `last_diary_covered` either means every committed diary is read. One sentence states that a new insight file is always written with both fields. The first bullet in 1c now reads "no prior insight file, or no coverage point can be established for it".
+
+Both commands were run against `origin/main`, because the insight file is not on this branch. The lookup returned `c96b0faf1e14bcb7213f2c143086d21098f4b262`. The diff from that commit to `origin/main` over `docs/diary` returned one line: one added diary. On this branch, where the file does not exist, the lookup printed nothing and exited 0, which is the "go to the next case" condition in the text.
+
+In the same series, the last section of `skills/house-style/SKILL.md` was corrected: the core profile carries some of the rules and the skill is the complete set, instead of the profile being called a copy of them.
+
+### Why
+
+With the old first case, one diary added after the first insight file would have cost a fan-out over more than seventy diaries. The commit that added the file is the nearest thing git holds to the point the corpus was read at.
+
+### What worked
+
+Running the lookup where the file is absent. It showed the empty-output behaviour the text relies on, without needing a constructed case.
+
+### What didn't work
+
+Nothing failed in this step.
+
+### What I learned
+
+The add commit is a weaker marker than `read_at_commit`. The commit that added the first insight file also added a diary. Whether that diary was read before the insight file was written cannot be determined from git, and the diff from that commit leaves it out. The skill text now states this and tells the run to put it in the insight file's Notes.
+
+### What was tricky
+
+The cases in 1a are taken by "the first that applies", so the new case needed an explicit hand-over ("if the command prints nothing, go to the next case") to keep the chain readable in that form.
+
+### What warrants review
+
+A file whose `read_at_commit` is present but unreachable still goes to the filename fallback, not to the add commit. The brief asked for the add commit only when the field is missing; using it in the unreachable case too would be a further change. The `1b` "Nothing to read" stop and the step 4 template were read against the new text and left unchanged. No run of the skill was made, so the new case is untested end to end.
+
+### Future work
+
+The diary that shares a commit with the first insight file is the concrete instance of the stated weakness. The next real run will not list it; whoever runs it decides whether to read it by hand.
