@@ -39,15 +39,15 @@ Find the latest file in `docs/insights/` and look only at its frontmatter for no
   git diff --no-renames --diff-filter=AM --name-only <read_at_commit> HEAD -- docs/diary > "$W/to-read.txt"
   ```
 
-- **The file has no `read_at_commit`** (fallback): use the commit that added the insight file as `read_at_commit`.
+- **The file has no `read_at_commit`, or it is not reachable** (fallback; for example after a history rewrite): use the commit that added the insight file as `read_at_commit`.
 
   ```bash
   git log --diff-filter=A -1 --format=%H -- docs/insights/<file>
   ```
 
-  With that hash the diff command above applies unchanged. The weakness: diaries that were uncommitted when the file was written, or were committed in the same commit as the file, may or may not have been read, and git cannot tell which. Say so in the insight file's Notes. If the command prints nothing (the file was never committed), go to the next case.
+  With that hash the diff command above applies unchanged. `-1` gives the most recent add if the file was deleted and added again. The weakness: diaries that were uncommitted when the file was written, or were committed in the same commit as the file, may or may not have been read, and git cannot tell which. Say so in the insight file's Notes. If the command prints nothing (the file was never committed), go to the next case.
 
-- **`read_at_commit` is not reachable, or the file has none and no commit added it** (fallback): the filenames that sort after `last_diary_covered`. This misses backfilled diaries and diaries modified after they were covered; say so in the insight file's Notes.
+- **No commit added the insight file** (fallback): the filenames that sort after `last_diary_covered`. This misses backfilled diaries and diaries modified after they were covered; say so in the insight file's Notes.
 
   ```bash
   git ls-tree -r --name-only HEAD -- docs/diary | awk -v last="docs/diary/<last_diary_covered>" '$0 > last' > "$W/to-read.txt"
