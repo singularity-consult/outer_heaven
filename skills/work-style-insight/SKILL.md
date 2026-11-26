@@ -77,12 +77,12 @@ The form is the one in [[distill-book]]: the main session never loads the raw ma
 
 1. **Batch** the list chronologically by filename. A batch holds at most 12 diaries and 250 KB; a single diary over 250 KB gets a batch of its own.
 2. **Spawn one subagent per batch, all in one go** so they run concurrently. Use fresh subagents that do not inherit this session's context. Each prompt is self-contained and holds:
-   - the working clone path and the exact diary paths of its batch;
+   - the task in one line (find candidate patterns in how Benny works and decides, from these implementation diaries), the working clone path, and the exact diary paths of its batch;
    - the five categories from step 2 (decision style, recurring corrections, what he values or rejects, workflow shape, tooling and stack reality), by name only, as places to look and not as answers;
    - the instruction to return **every** candidate pattern, including one seen in a single diary, with no ranking, filtering or merging away of thin ones;
    - per candidate: the category, one line on what it is, and the evidence as diary filename(s) plus the moment in each diary (step heading and what happened);
    - the rule that sensitive personal matters (health, finance, private projects) are never carried from a diary into the candidates;
-   - the instruction to write the candidates to `$W/candidates-<nn>.md` and reply with only a short token (for example "done batch 3").
+   - the instruction to write the candidates to `$W/candidates-<nn>.md` (give the absolute path; the subagent does not have `$W`) and reply with only a short token (for example "done batch 3").
 3. **Keep the subagents blind.** Do not give them this session's conclusions or expectations, example patterns, or any prior insight file. They read raw.
 4. **Synthesise** in the main session from the candidate files (step 2), then delete `$W`.
 
