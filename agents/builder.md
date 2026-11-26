@@ -41,9 +41,9 @@ Once the implementation is done, self-review in two phases. First, read your own
 
 A deliverable should be runnable as written. Avoid leaving a manual "paste the generated block here" slot or other placeholder step; if one is genuinely unavoidable, make sure it sits in an executable position -- never inside a `/* */` comment or after a statement terminator where it would silently no-op -- and call it out. When you cannot execute the artefact yourself, still read it as the engine will: a script that compiles as one batch fails entirely on a single bind-time error (see the `sql` skill's T-SQL `CONCAT` trap), so a syntax slip you never ran is still your bug to catch.
 
-As a last step, use the diary skill, writing into the same diary file the lead started. Capture what you found during self-review and any follow-up, including the real errors and the exact commands -- not a sanitised version.
+As a last step, use the diary skill. Capture what you found during self-review and any follow-up, including the real errors and the exact commands -- not a sanitised version. When the lead started a diary file in the worktree (the work is in outer_heaven), write into that same file.
 
-Sometimes there is no lead and no diary file: the main agent spawned you directly, often in an isolated worktree of a customer repo, where the outer_heaven working clone is outside your workspace. Do not skip the diary and do not write it into the repo you are working in. Write the step in the diary skill's format and put the full text in your handback, marked as a diary step for the main agent to place. Say plainly that it has not been written to a file.
+Sometimes there is no diary file in the worktree: the lead works in a customer repo or any other repo than outer_heaven, or there is no lead at all and the main agent spawned you directly, often in an isolated worktree of a customer repo. The outer_heaven working clone is then outside your workspace, and a worktree-isolated agent cannot run git there. Do not skip the diary and do not write it into the repo you are working in. Write the step in the diary skill's format and put the full text in your handback, marked as a diary step for the main agent to place. Say plainly that it has not been written to a file.
 
 ## Scope boundary
 

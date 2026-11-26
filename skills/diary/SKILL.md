@@ -98,7 +98,7 @@ Brief description of the goal and context for this task.
 
 1. **Implement** the change.
 2. **Update the diary** with the current step.
-3. **Commit together, when asked.** Include the diary file alongside the work it documents. Invoking this skill is not itself a commit request: wait for the user to ask before running `git commit`.
+3. **Commit together, when asked.** When the diary and the work are in the same repo, include the diary file alongside the work it documents in one commit. When they are in different repos, that is two commits, one in each repo, and the diary entry refers to the work's commit hash and repo. Invoking this skill is not itself a commit request: wait for the user to ask before running `git commit`.
 4. **Ask about the commit; do not leave it hanging.** When the entry is written, end with one question: commit and push it now? An entry nobody asks about stays untracked, and untracked entries do not travel across machines or reach `work-style-insight`. Entries have piled up uncommitted for months this way. If earlier entries are still untracked in `docs/diary/`, say how many, but commit only the ones Benny names: older entries may not have been scanned yet.
 
 A "step" is a logical chunk of work, not necessarily a single commit (for example "wire up the hook", "debug the flaky test").
