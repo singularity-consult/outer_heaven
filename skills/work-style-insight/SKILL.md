@@ -16,7 +16,7 @@ The premise: one diary is an anecdote; the corpus is evidence. Friction or a pre
 ## When not to use
 
 - **Single-conversation friction about a specific skill** -- that is [[improve-skill]], driven by the current conversation, not the corpus.
-- **Project status or knowledge** -- that lives in memory, not here.
+- **Project status or knowledge** -- that lives in command-deck (the private repo `singularity-consult/command-deck`), not here.
 - **Sensitive personal matters** (health, finance, private projects) -- these never enter this repo. They are not in the diaries and must not be introduced here.
 
 ## Step 1: Measure the corpus, then read it by one of two paths
