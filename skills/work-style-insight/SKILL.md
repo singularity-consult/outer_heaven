@@ -27,7 +27,7 @@ The corpus does not fit in one context, so measure before reading any diary. Run
 
 Find the latest file in `docs/insights/` and look only at its frontmatter for now: `read_at_commit` and `last_diary_covered` (see step 4). Then write the list of diaries to read to `$W/to-read.txt`, by the first case that applies:
 
-- **No insight file, or one with neither field:** every committed diary.
+- **No insight file:** every committed diary.
 
   ```bash
   git ls-tree -r --name-only HEAD -- docs/diary | grep -v '\.gitkeep$' > "$W/to-read.txt"
@@ -39,11 +39,23 @@ Find the latest file in `docs/insights/` and look only at its frontmatter for no
   git diff --no-renames --diff-filter=AM --name-only <read_at_commit> HEAD -- docs/diary > "$W/to-read.txt"
   ```
 
-- **`read_at_commit` is not reachable** (fallback): the filenames that sort after `last_diary_covered`. This misses backfilled diaries and diaries modified after they were covered; say so in the insight file's Notes.
+- **The file has no `read_at_commit`** (fallback): use the commit that added the insight file as `read_at_commit`.
+
+  ```bash
+  git log --diff-filter=A -1 --format=%H -- docs/insights/<file>
+  ```
+
+  With that hash the diff command above applies unchanged. The weakness: diaries that were uncommitted when the file was written, or were committed in the same commit as the file, may or may not have been read, and git cannot tell which. Say so in the insight file's Notes. If the command prints nothing (the file was never committed), go to the next case.
+
+- **`read_at_commit` is not reachable, or the file has none and no commit added it** (fallback): the filenames that sort after `last_diary_covered`. This misses backfilled diaries and diaries modified after they were covered; say so in the insight file's Notes.
 
   ```bash
   git ls-tree -r --name-only HEAD -- docs/diary | awk -v last="docs/diary/<last_diary_covered>" '$0 > last' > "$W/to-read.txt"
   ```
+
+  If the file has no `last_diary_covered` either, no coverage point can be established for it: read every committed diary, with the command from the first case.
+
+A new insight file is always written with both fields (step 4); the two fallbacks exist for files that were written without them or whose commit is gone.
 
 The commit is the primary marker because diaries get backfilled with older dates (one commit on `main` added 18 entries dated August to November); a "newer than date X" rule silently skips them, a diff against the commit does not.
 
@@ -66,7 +78,7 @@ Stop here in two cases, and say so plainly with the numbers:
 
 Take the **fan-out** when either holds; otherwise take the **rolling window**:
 
-- there is no prior insight file with a readable `read_at_commit` or `last_diary_covered`; or
+- there is no prior insight file, or no coverage point can be established for it (the last case in 1a); or
 - the list is more than 12 diaries or more than 250 KB (256,000 bytes), whichever trips first.
 
 These two numbers are a starting value based on an assumed ratio of about 3.5 bytes per token, not a measured one; adjust them after real runs.
