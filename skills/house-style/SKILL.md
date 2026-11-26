@@ -48,4 +48,4 @@ The detail is not repeated here. Read it where it lives:
 
 ## Relation to the core profile
 
-`hooks/scripts/core-profile.md` is the always-loaded copy of these rules for the main session. The small overlap between the two is accepted: the profile reaches the main session, this skill reaches whoever is told to use it. When a rule changes, correct both in the same change.
+`hooks/scripts/core-profile.md` is always loaded in the main session and carries some of these rules, not all of them. This skill is the complete set. The overlap between the two is accepted: the profile reaches the main session, this skill reaches whoever is told to use it. When a rule that is in both changes, correct both in the same change.
