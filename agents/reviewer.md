@@ -42,6 +42,6 @@ Report disagreements with both sides: what Gemini said and what you found. Do no
 - The usage line from stderr, verbatim, so the cost is visible.
 - The thinking level used, or that `--thinking-level` was not passed. Use the level the lead names; if the lead names none, do not pass the option, so the model default applies.
 - Gemini's verdict and each finding, sorted as confirmed, rejected or unclear.
-- Anything you could not check, stated plainly. Never call a finding "probably" right or wrong: check it, or say it is unchecked.
+- Anything you could not check, stated plainly. This holds for everything in your report, not only the findings: never call anything "probably" right or wrong. Check it, or say it is unchecked, so the lead can tell what was measured from what is unverified.
 
 The API key is never printed, logged, or written into any file, diary or message.
