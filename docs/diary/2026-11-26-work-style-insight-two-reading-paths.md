@@ -173,3 +173,73 @@ A file whose `read_at_commit` is present but unreachable still goes to the filen
 ### Future work
 
 The diary that shares a commit with the first insight file is the concrete instance of the stated weakness. The next real run will not list it; whoever runs it decides whether to read it by hand.
+
+## Step 4: Unreachable `read_at_commit`, merge of main, version bump
+
+**Author:** builder
+
+### Prompt Context
+
+**Speaker:** agent brief
+**Verbatim prompt:** (from the main session; excerpt, the measured facts, the limits and the git and reporting instructions are left out, the quoted text is verbatim)
+
+> In step 1a today: a file with NO `read_at_commit` falls back to the commit that added the insight file; a `read_at_commit` that EXISTS BUT IS NOT REACHABLE (for example after a history rewrite) goes straight to the filename fallback (`last_diary_covered`). Change that: an unreachable `read_at_commit` also goes to the add commit of the insight file first, and only then to the filename fallback. [...] Add one sentence that `-1` gives the most recent add if the file was deleted and re-added.
+>
+> Step 2: merge `origin/main` into the branch (merge, NOT rebase) [...] On a conflict in `skills/diary/SKILL.md`, `README.md`, `agents/lead.md` or `agents/reviewer.md`: keep BOTH sides' changes. [...]
+>
+> Step 3: version bump, separate commit AFTER the merge. Only if BOTH hold: the version on `origin/main` is exactly `0.22.0` [...] and `git ls-remote origin "refs/tags/v0.23.0"` prints nothing.
+
+**Benny's own words:** none quoted in the brief
+**Interpretation:** Three small pieces in a fixed order: one more hand-over in the 1a chain, a merge commit that keeps both sides, and a minor bump on top of the merged tree. Then checks that nothing from main was lost.
+**Inferred intent:** Close the gap Step 3 left under "What warrants review", and make the branch mergeable on top of what main got in the meantime.
+
+### What I did
+
+In `skills/work-style-insight/SKILL.md` step 1a the add-commit case now reads "The file has no `read_at_commit`, or it is not reachable", and the filename fallback is headed "No commit added the insight file". One sentence says that `-1` gives the most recent add if the file was deleted and added again. Commit `39b5e78`.
+
+`git fetch origin` left `origin/main` at `10443b4`, as measured in the brief. `git log origin/main..HEAD --stat` gave the branch's own file list before the merge. Then `git merge --no-ff --no-commit origin/main`. The method is the one in `skills/merge-conflict-safety/SKILL.md`, read from the worktree; the skill was not invoked through the plugin.
+
+One conflict, in the hand-back list of `agents/reviewer.md`. Main had added two bullets (non-code mode, images sent) directly above the last bullet and left that bullet as it was. The branch had rewritten that last bullet to cover the whole report. The resolution keeps main's two bullets and the branch's wording of the last one. Merge commit `b8a5eb1`.
+
+`README.md`, `agents/lead.md` and `skills/diary/SKILL.md` merged without conflict. Each was read against both sides' diffs: `README.md` has `curate` and `house-style` in the skills list and the list sorts cleanly; `agents/lead.md` has the review-mode paragraph from main and the diary-location and `house-style` paragraphs from the branch; `skills/diary/SKILL.md` has the branch's working-clone bullet and working-loop item 3 and main's secrets scan and `Speaker` lines.
+
+The version on `origin/main` was `0.22.0` and the remote had no `v0.23.0` tag, so `.claude-plugin/plugin.json` went to `0.23.0`. Commit `4573a9c`. No other file carries the version: `marketplace.json` has none, and `hooks/scripts/session-start.sh` reads it from `plugin.json`.
+
+### Why
+
+An unreachable hash and a missing field leave the run in the same position: no usable `read_at_commit`. The add commit is found by walking from `HEAD`, so it is reachable by construction and a better coverage point than a filename comparison.
+
+### What worked
+
+`--no-commit` on the merge. It stopped before the commit, so the three auto-merged files could be read while the merge was still open.
+
+### What didn't work
+
+The merge stopped on one file:
+
+```
+Auto-merging README.md
+Auto-merging agents/lead.md
+Auto-merging agents/reviewer.md
+CONFLICT (content): Merge conflict in agents/reviewer.md
+Auto-merging skills/diary/SKILL.md
+Automatic merge failed; fix conflicts and then commit the result.
+```
+
+A check command that chained several git calls with pipes and process substitution was refused by the worktree isolation ("this command names git in a form too complex to verify that it stays inside the worktree"). The calls were then run one at a time.
+
+### What I learned
+
+The conflict was one of adjacency, not of content. Main did not change the "probably" bullet; it added lines that touch it, and that is enough for git to stop.
+
+### What was tricky
+
+The brief expected conflicts in up to four files and named `agents/reviewer.md` as one that auto-merged. It was the other way round: that file was the only conflict.
+
+### What warrants review
+
+`python skills/second-opinion/scripts/test_second_opinion.py` printed `Ran 81 tests in 0.280s` and `OK`; the tests mock the key and the network call. `git diff --stat origin/main...HEAD` and `git diff --stat origin/main HEAD` list the same 16 files, all of them the branch's own. No long dash in any line the branch adds. Not verified: the new 1a wording has not been exercised by a run of the skill, and no unreachable `read_at_commit` was constructed to test it.
+
+### Future work
+
+The tag `v0.23.0` and the release belong on the merge commit on `main`, after the PR is merged. Nothing was tagged here.
